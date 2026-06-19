@@ -6,7 +6,7 @@ import {
   Cell, Legend
 } from 'recharts';
 
-const API = 'http://localhost:3001';
+const API = 'https://carbon-canary.onrender.com';
 const STATUS_COLOR = { above: '#4ade80', average: '#fbbf24', below: '#f87171' };
 
 function CustomTooltip({ active, payload, label }) {
