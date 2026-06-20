@@ -63,6 +63,113 @@ const REPORT_BENCHMARKS = {
   'Waste & Circularity': { benchmark: 45, description: 'Waste reduction and circular practices' },
 };
 
+// ─── FICTIONAL COMPETITOR DATA (demo/sample only — not real companies) ───────
+const INVOICE_COMPETITORS = [
+  { name: 'GreenFlow Industries', scores: { 'Material Emissions': 72, 'Transport Emissions': 75, 'Data Completeness': 80, 'Supplier Coverage': 68, 'Emission Intensity': 70, 'Audit Readiness': 78 } },
+  { name: 'NordPlast Manufacturing', scores: { 'Material Emissions': 55, 'Transport Emissions': 60, 'Data Completeness': 65, 'Supplier Coverage': 58, 'Emission Intensity': 62, 'Audit Readiness': 60 } },
+  { name: 'Baltic Steel Works', scores: { 'Material Emissions': 48, 'Transport Emissions': 62, 'Data Completeness': 70, 'Supplier Coverage': 50, 'Emission Intensity': 55, 'Audit Readiness': 65 } },
+];
+
+const REPORT_COMPETITORS = [
+  { name: 'EcoChain Solutions', scores: { 'Scope 3 Coverage': 88, 'Data Completeness': 82, 'Supplier Engagement': 70, 'Reporting Frequency': 75, 'Emission Intensity': 70, 'Reduction Target': 65, 'Audit Readiness': 80, 'Transport Emissions': 72, 'Material Sourcing': 68, 'Waste & Circularity': 55 } },
+  { name: 'Continental Logistics Group', scores: { 'Scope 3 Coverage': 70, 'Data Completeness': 68, 'Supplier Engagement': 55, 'Reporting Frequency': 65, 'Emission Intensity': 60, 'Reduction Target': 45, 'Audit Readiness': 68, 'Transport Emissions': 80, 'Material Sourcing': 58, 'Waste & Circularity': 40 } },
+  { name: 'Vistula Manufacturing Co.', scores: { 'Scope 3 Coverage': 65, 'Data Completeness': 60, 'Supplier Engagement': 50, 'Reporting Frequency': 55, 'Emission Intensity': 58, 'Reduction Target': 40, 'Audit Readiness': 62, 'Transport Emissions': 60, 'Material Sourcing': 55, 'Waste & Circularity': 35 } },
+];
+
+// ─── RULE-BASED RECOMMENDATIONS ──────────────────────────────────────────────
+// Maps each category to specific, actionable improvement suggestions when score is low.
+const RECOMMENDATION_RULES = {
+  'Material Emissions': [
+    'Switch to recycled or low-carbon material grades where available (e.g. recycled aluminium emits ~95% less CO₂ than primary aluminium).',
+    'Consolidate orders with fewer, higher-volume suppliers to reduce material waste and processing emissions.',
+    'Request Environmental Product Declarations (EPDs) from suppliers to identify lower-carbon material alternatives.',
+  ],
+  'Transport Emissions': [
+    'Shift road freight to rail where distance exceeds 300km — rail emits roughly 70% less CO₂ per tonne-km.',
+    'Consolidate shipments to reduce the number of partial-load deliveries.',
+    'Prioritize suppliers located within the DE/PL corridor to shorten transport distances.',
+  ],
+  'Data Completeness': [
+    'Request itemized invoices with explicit quantities and units from suppliers, rather than lump-sum billing.',
+    'Standardize invoice templates with suppliers to ensure consistent quantity and material reporting.',
+    'Set up a quarterly data-quality review with top suppliers.',
+  ],
+  'Supplier Coverage': [
+    'Onboard additional suppliers onto structured reporting (CSV/Excel) to widen visibility beyond top spenders.',
+    'Request Scope 3 data directly from suppliers representing the largest share of spend.',
+    'Use a supplier sustainability questionnaire to capture missing emission sources.',
+  ],
+  'Emission Intensity': [
+    'Benchmark CO₂ per unit of output against sector averages to identify inefficient production steps.',
+    'Evaluate energy-efficiency upgrades at high-intensity production stages.',
+    'Negotiate volume discounts with lower-emission-intensity suppliers to shift sourcing mix.',
+  ],
+  'Audit Readiness': [
+    'Ensure every emission figure is traceable to a cited EU JRC or IPCC source for CSRD audit purposes.',
+    'Maintain a centralized log of supporting documents (invoices, EPDs) for each reported emission.',
+    'Run an internal mock-audit before the CSRD reporting deadline to surface documentation gaps.',
+  ],
+  'Scope 3 Coverage': [
+    'Expand tracking to additional Scope 3 categories beyond Purchased Goods (e.g. Capital Goods, Waste, Business Travel).',
+    'Map your full supplier base against the 15 GHG Protocol Scope 3 categories to find blind spots.',
+  ],
+  'Supplier Engagement': [
+    'Launch a supplier sustainability scorecard to incentivize emission data sharing.',
+    'Offer simplified reporting templates to small suppliers who lack dedicated sustainability staff.',
+  ],
+  'Reporting Frequency': [
+    'Move from annual to quarterly emissions reporting to catch issues earlier.',
+    'Automate recurring data pulls from accounting/ERP systems to reduce manual reporting lag.',
+  ],
+  'Reduction Target': [
+    'Set a science-based target (SBTi) aligned with a 1.5°C pathway for your sector.',
+    'Publish an interim 2027 reduction milestone to demonstrate near-term progress.',
+  ],
+  'Material Sourcing': [
+    'Prioritize suppliers offering recycled-content or bio-based material options.',
+    'Introduce a minimum recycled-content requirement in new supplier contracts.',
+  ],
+  'Waste & Circularity': [
+    'Introduce take-back or recycling programs for packaging materials.',
+    'Track landfill diversion rate as a formal KPI alongside emissions data.',
+  ],
+};
+
+function generateRecommendations(results) {
+  // Pick the 3 categories with the worst (most negative) gap — these matter most.
+  const sorted = [...results].sort((a, b) => a.gap - b.gap);
+  const worst = sorted.filter(r => r.gap < 0).slice(0, 3);
+
+  return worst.map(r => {
+    const tips = RECOMMENDATION_RULES[r.category] || ['Review this category against industry best practices.'];
+    return {
+      category: r.category,
+      gap: r.gap,
+      priority: r.gap <= -15 ? 'high' : 'medium',
+      suggestions: tips,
+    };
+  });
+}
+
+function buildCompetitorComparison(results, competitorList) {
+  // Compute each competitor's average score for an overall ranking.
+  const withAvg = competitorList.map(c => {
+    const vals = Object.values(c.scores);
+    const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+    return { name: c.name, scores: c.scores, overallScore: avg };
+  });
+
+  const yourAvg = Math.round(results.reduce((s, r) => s + r.score, 0) / results.length);
+
+  const all = [{ name: 'Your Company', scores: Object.fromEntries(results.map(r => [r.category, r.score])), overallScore: yourAvg, isYou: true },
+    ...withAvg];
+
+  all.sort((a, b) => b.overallScore - a.overallScore);
+  const rank = all.findIndex(c => c.isYou) + 1;
+
+  return { competitors: withAvg, yourRank: rank, totalCompanies: all.length, leaderboard: all };
+}
+
 // ─── PDF TEXT EXTRACTION ──────────────────────────────────────────────────────
 function extractTextFromPDF(buffer) {
   try {
@@ -385,6 +492,8 @@ function analyzeReport(text) {
     results,
     strong: results.filter(r => r.status === 'above').map(r => r.category),
     weak: results.filter(r => r.status === 'below').map(r => r.category),
+    competitorView: buildCompetitorComparison(results, REPORT_COMPETITORS),
+    recommendations: generateRecommendations(results),
   };
 }
 
@@ -447,6 +556,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       results,
       strong: results.filter(r => r.status === 'above').map(r => r.category),
       weak: results.filter(r => r.status === 'below').map(r => r.category),
+      competitorView: buildCompetitorComparison(results, INVOICE_COMPETITORS),
+      recommendations: generateRecommendations(results),
     });
   } catch (err) {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
