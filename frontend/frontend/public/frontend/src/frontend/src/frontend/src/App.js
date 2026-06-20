@@ -29,77 +29,70 @@ function ScoreBar({ score, status }) {
   );
 }
 
-// ── COMPETITOR VIEW ───────────────────────────────────────────────────────────
+// ── COMPETITOR VIEW (simple) ──────────────────────────────────────────────────
 function CompetitorView({ competitorView }) {
   if (!competitorView) return null;
   const { leaderboard, yourRank, totalCompanies } = competitorView;
-  const maxScore = Math.max(...leaderboard.map(c => c.overallScore), 100);
 
   return (
     <div className="panel full" style={{ marginBottom: 20 }}>
-      <div className="panel-title">Competitor Comparison <span style={{ color: '#6b8f72', fontWeight: 400, marginLeft: 6 }}>(sample data for illustration)</span></div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontFamily: 'IBM Plex Mono', fontSize: 28, fontWeight: 700, color: '#4ade80' }}>#{yourRank}</span>
-        <span style={{ fontSize: 13, color: '#6b8f72' }}>out of {totalCompanies} companies compared</span>
+      <div className="panel-title">How You Compare</div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%', background: 'rgba(74,222,128,0.12)',
+          border: '2px solid #4ade80', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'IBM Plex Mono', fontSize: 22, fontWeight: 700, color: '#4ade80', flexShrink: 0,
+        }}>#{yourRank}</div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>You rank #{yourRank} of {totalCompanies}</div>
+          <div style={{ fontSize: 12, color: '#6b8f72' }}>Compared to similar companies (sample data)</div>
+        </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {leaderboard.map((c, i) => (
-          <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div key={c.name} style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,
+            background: c.isYou ? 'rgba(74,222,128,0.08)' : 'transparent',
+            border: c.isYou ? '1px solid rgba(74,222,128,0.25)' : '1px solid transparent',
+          }}>
+            <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: '#6b8f72', width: 18 }}>{i + 1}</div>
             <div style={{
-              width: 22, fontFamily: 'IBM Plex Mono', fontSize: 12, color: c.isYou ? '#4ade80' : '#6b8f72',
-              fontWeight: c.isYou ? 700 : 400,
-            }}>#{i + 1}</div>
+              fontSize: 13, fontWeight: c.isYou ? 700 : 400, color: c.isYou ? '#4ade80' : '#e2f0e4', flex: 1,
+            }}>{c.isYou ? 'You' : c.name}</div>
             <div style={{
-              width: 170, fontSize: 13, fontWeight: c.isYou ? 700 : 400,
-              color: c.isYou ? '#4ade80' : '#e2f0e4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{c.name}</div>
-            <div style={{ flex: 1, height: 10, background: '#1e2b1e', borderRadius: 5, overflow: 'hidden' }}>
-              <div style={{
-                width: `${(c.overallScore / maxScore) * 100}%`, height: '100%', borderRadius: 5,
-                background: c.isYou ? '#4ade80' : '#374a37', transition: 'width 0.4s',
-              }} />
-            </div>
-            <div style={{
-              width: 32, textAlign: 'right', fontFamily: 'IBM Plex Mono', fontSize: 13, fontWeight: 700,
-              color: c.isYou ? '#4ade80' : '#6b8f72',
+              fontFamily: 'IBM Plex Mono', fontSize: 14, fontWeight: 700,
+              color: c.isYou ? '#4ade80' : '#a8c4ab',
             }}>{c.overallScore}</div>
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: '#6b8f72', marginTop: 14 }}>
-        ⓘ Competitor figures are illustrative sample data for demo purposes, not real company disclosures.
-      </div>
+      <div style={{ fontSize: 11, color: '#6b8f72', marginTop: 12 }}>Sample data for illustration only.</div>
     </div>
   );
 }
 
-// ── RECOMMENDATIONS PANEL ─────────────────────────────────────────────────────
+// ── RECOMMENDATIONS PANEL (simple) ────────────────────────────────────────────
 function RecommendationsPanel({ recommendations }) {
   if (!recommendations || recommendations.length === 0) return null;
-  const PRIORITY_COLOR = { high: '#f87171', medium: '#fbbf24' };
 
   return (
     <div className="panel full" style={{ marginBottom: 20 }}>
-      <div className="panel-title">Recommended Improvements</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="panel-title">What To Improve</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {recommendations.map((rec) => (
           <div key={rec.category} style={{
-            background: '#182118', border: '1px solid #1e2b1e', borderRadius: 10, padding: '16px 20px',
+            display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px',
+            background: '#182118', border: '1px solid #1e2b1e', borderRadius: 10,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{
-                background: `${PRIORITY_COLOR[rec.priority]}22`, color: PRIORITY_COLOR[rec.priority],
-                padding: '2px 10px', borderRadius: 4, fontSize: 10, fontFamily: 'IBM Plex Mono',
-                textTransform: 'uppercase', letterSpacing: 1,
-              }}>{rec.priority} priority</span>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>{rec.category}</span>
-              <span style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: '#f87171', marginLeft: 'auto' }}>{rec.gap} pts vs benchmark</span>
+            <div style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>
+              {rec.priority === 'high' ? '🔴' : '🟡'}
             </div>
-            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {rec.suggestions.map((s, i) => (
-                <li key={i} style={{ fontSize: 13, color: '#a8c4ab', lineHeight: 1.5 }}>{s}</li>
-              ))}
-            </ul>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{rec.category}</div>
+              <div style={{ fontSize: 13, color: '#a8c4ab', lineHeight: 1.5 }}>{rec.suggestions[0]}</div>
+            </div>
           </div>
         ))}
       </div>
