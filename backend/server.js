@@ -93,7 +93,8 @@ function extractTextFromPDF(buffer) {
 function extractNumbers(text) {
   const numbers = [];
   // Match patterns like: 100 kg, 50,5 kg, 1.500 t, 200 litre, 50 kWh
-  const regex = /(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?)\s*(kg|t\b|ton|tonne|litre|liter|ltr|l\b|kwh|km|pcs|szt|stk|stück|m²|m2|m³|m3)/gi;
+  // Also matches CSV format: 320,kg or 320, kg (comma-separated columns)
+  const regex = /(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?)\s*,?\s*(kg|t\b|ton|tonne|litre|liter|ltr|l\b|kwh|km|pcs|szt|stk|stück|m²|m2|m³|m3)\b/gi;
   let match;
   while ((match = regex.exec(text)) !== null) {
     let val = match[1].replace(/\./g, '').replace(',', '.');
@@ -110,8 +111,83 @@ function extractNumbers(text) {
   return numbers;
 }
 
+// ─── CSV/STRUCTURED DATA PARSER (more accurate than text scanning) ───────────
+function extractLineItemsFromCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const lineItems = [];
+  const usedFactors = new Set();
+
+  // Find header row to identify column positions
+  let headerIdx = -1, descCol = -1, qtyCol = -1, unitCol = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().toLowerCase());
+    // Prefer an exact "description" column; fall back to one containing "item"
+    // but skip columns that are just an item NUMBER (e.g. "Line Item", "Item No")
+    let dIdx = cols.findIndex(c => c === 'description' || c.includes('description'));
+    if (dIdx === -1) {
+      dIdx = cols.findIndex(c =>
+        (c.includes('item') || c.includes('product') || c.includes('material')) &&
+        !c.includes('no') && !c.includes('number') && !c.includes('#') && c !== 'line item'
+      );
+    }
+    const qIdx = cols.findIndex(c => c.includes('quantity') || c.includes('qty') || c.includes('menge'));
+    const uIdx = cols.findIndex(c => c.includes('unit') && !c.includes('price'));
+    if (dIdx !== -1 && qIdx !== -1) {
+      headerIdx = i; descCol = dIdx; qtyCol = qIdx; unitCol = uIdx;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) return null; // not a recognizable CSV table
+
+  // Parse each data row after header
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim());
+    if (cols.length <= Math.max(descCol, qtyCol)) continue;
+
+    const description = cols[descCol] || '';
+    const qtyRaw = cols[qtyCol] || '';
+    const unit = unitCol !== -1 ? (cols[unitCol] || 'kg') : 'kg';
+    const qty = parseFloat(qtyRaw.replace(/[^\d.,]/g, '').replace(',', '.'));
+
+    if (!description || isNaN(qty) || qty <= 0) continue;
+
+    const descLower = description.toLowerCase();
+    let matched = null;
+    for (const mf of MATERIAL_FACTORS) {
+      if (mf.keywords.some(kw => descLower.includes(kw))) { matched = mf; break; }
+    }
+    if (!matched) continue;
+    if (usedFactors.has(matched.label)) continue;
+
+    let qtyInKg = qty;
+    const u = unit.toLowerCase();
+    if (u === 't' || u === 'ton' || u === 'tonne') qtyInKg = qty * 1000;
+
+    const co2kg = Math.round(qtyInKg * matched.factor * 100) / 100;
+    lineItems.push({
+      item: description,
+      category: matched.label,
+      quantity: qty,
+      unit: unit || matched.unit,
+      factor: matched.factor,
+      co2kg,
+      estimated: false,
+      source: matched.source,
+    });
+    usedFactors.add(matched.label);
+  }
+
+  return lineItems.length > 0 ? lineItems : null;
+}
+
 // ─── EXTRACT LINE ITEMS FROM TEXT ─────────────────────────────────────────────
 function extractLineItems(text) {
+  // First try structured CSV parsing (much more accurate)
+  const csvResult = extractLineItemsFromCSV(text);
+  if (csvResult) return csvResult;
+
+  // Fall back to free-text scanning (for PDFs and unstructured documents)
   const lower = text.toLowerCase();
   const numbers = extractNumbers(text);
   const lineItems = [];
