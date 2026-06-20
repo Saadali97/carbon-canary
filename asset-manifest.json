@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/carbon-canary/static/css/main.9da34e5f.css",
-    "main.js": "/carbon-canary/static/js/main.d849dcc9.js",
+    "main.js": "/carbon-canary/static/js/main.5a990040.js",
     "index.html": "/carbon-canary/index.html",
     "main.9da34e5f.css.map": "/carbon-canary/static/css/main.9da34e5f.css.map",
-    "main.d849dcc9.js.map": "/carbon-canary/static/js/main.d849dcc9.js.map"
+    "main.5a990040.js.map": "/carbon-canary/static/js/main.5a990040.js.map"
   },
   "entrypoints": [
     "static/css/main.9da34e5f.css",
-    "static/js/main.d849dcc9.js"
+    "static/js/main.5a990040.js"
   ]
 }
