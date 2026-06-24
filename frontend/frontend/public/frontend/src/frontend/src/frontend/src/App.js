@@ -352,7 +352,7 @@ function UploadView({ onResult, lang, setLang }) {
       <div style={{ position: 'absolute', top: 16, right: 24 }}>
         <LanguageSwitcher lang={lang} setLang={setLang} />
       </div>
-      <h1 className="upload-headline">Your supplier's carbon footprint<br />extracted, calculated, audit ready</h1>
+      <h1 className="upload-headline">Carbon footprint<br />extracted calculated audit ready</h1>
       <p className="upload-sub">
         {t(lang, 'uploadSub1')}<strong style={{ color: '#4ade80' }}>{t(lang, 'uploadSubInvoice')}</strong>{t(lang, 'uploadSub2')}<strong style={{ color: '#fbbf24' }}>{t(lang, 'uploadSubReport')}</strong>{t(lang, 'uploadSub3')}
       </p>
