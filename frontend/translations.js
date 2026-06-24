@@ -6,8 +6,8 @@ export const LANG_LABEL = { en: 'EN', de: 'DE', pl: 'PL' };
 
 export const T = {
   en: {
-    appTagline: 'Scope 3 Analytics · DE/PL Corridor · Climathon 2026',
-    uploadHeadlinePre: 'Scope 3 ',
+    appTagline: 'Emission Analytics · DE/PL Corridor · Climathon 2026',
+    uploadHeadlinePre: '',
     uploadHeadlineEm: 'Carbon',
     uploadHeadlinePost: 'Intelligence Dashboard',
     uploadSub1: 'Upload a ',
@@ -35,6 +35,7 @@ export const T = {
     badgeConfidence: 'CONFIDENCE',
     newFile: '\u2190 New File',
     downloadPDF: '\u2b07 Download PDF Report',
+    downloadWord: '\u2b07 Download Word Report',
     downloadExcel: '\u2b07 Download Excel Data',
 
     // KPI labels
@@ -91,7 +92,7 @@ export const T = {
   },
 
   de: {
-    appTagline: 'Scope-3-Analyse · DE/PL-Korridor · Climathon 2026',
+    appTagline: 'Emissionsanalyse · DE/PL-Korridor · Climathon 2026',
     uploadHeadlinePre: 'Scope-3-',
     uploadHeadlineEm: 'CO\u2082',
     uploadHeadlinePost: 'Intelligence-Dashboard',
@@ -119,6 +120,7 @@ export const T = {
     badgeConfidence: 'KONFIDENZ',
     newFile: '\u2190 Neue Datei',
     downloadPDF: '\u2b07 PDF-Bericht herunterladen',
+    downloadWord: '\u2b07 Word-Bericht herunterladen',
     downloadExcel: '\u2b07 Excel-Daten herunterladen',
 
     kpiTotalCO2: 'Gesamte CO\u2082-Emissionen',
@@ -169,10 +171,10 @@ export const T = {
   },
 
   pl: {
-    appTagline: 'Analiza Scope 3 · Korytarz DE/PL · Climathon 2026',
+    appTagline: 'Analiza Emisji · Korytarz DE/PL · Climathon 2026',
     uploadHeadlinePre: 'Inteligentny panel ',
     uploadHeadlineEm: 'CO\u2082',
-    uploadHeadlinePost: 'w zakresie Scope 3',
+    uploadHeadlinePost: '',
     uploadSub1: 'Prze\u015bli\u0107 ',
     uploadSubInvoice: 'faktur\u0119 dostawcy',
     uploadSub2: ', aby obliczy\u0107 CO\u2082, lub ',
@@ -197,6 +199,7 @@ export const T = {
     badgeConfidence: 'WIARYGODNO\u015a\u0106',
     newFile: '\u2190 Nowy plik',
     downloadPDF: '\u2b07 Pobierz raport PDF',
+    downloadWord: '\u2b07 Pobierz raport Word',
     downloadExcel: '\u2b07 Pobierz dane Excel',
 
     kpiTotalCO2: 'Ca\u0142kowite emisje CO\u2082',
