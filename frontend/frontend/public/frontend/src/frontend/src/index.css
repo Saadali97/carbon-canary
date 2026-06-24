@@ -70,12 +70,38 @@ body {
   margin-bottom: 16px;
 }
 .upload-headline {
-  font-size: clamp(24px, 4vw, 38px);  
+  font-size: clamp(24px, 4vw, 38px);
   font-weight: 700;
   text-align: center;
-  line-height: 1.1;
+  line-height: 1.25;
   margin-bottom: 12px;
-  letter-spacing: -1px;
+  letter-spacing: -0.5px;
+  background: linear-gradient(100deg, var(--text) 0%, var(--accent) 35%, var(--accent2) 50%, var(--accent) 65%, var(--text) 100%);
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  opacity: 0;
+  animation:
+    headlineFadeUp 0.9s ease-out 0.1s forwards,
+    headlineShine 6s linear 1.2s infinite;
+}
+@keyframes headlineFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes headlineShine {
+  0%   { background-position: 0% center; }
+  100% { background-position: -250% center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .upload-headline {
+    animation: none;
+    opacity: 1;
+    -webkit-text-fill-color: var(--text);
+    color: var(--text);
+  }
 }
 .upload-headline em {
   font-style: normal;
