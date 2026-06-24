@@ -114,7 +114,7 @@ function downloadCSV(data) {
     csv += `Total CO2 (kg),${data.totalCO2kg}\n`;
     csv += `Total CO2 (tonnes),${data.totalCO2t}\n`;
     csv += `Emission Rating,${data.co2Rating}\n`;
-    csv += `Confidence,${data.confidence}\n\n`;
+    csv += `Confidence Score,${data.confidenceScore}/10\n\n`;
     csv += `EMISSION BREAKDOWN\n`;
     csv += `Item,Category,Quantity,Unit,EU Factor (kg CO2/unit),CO2 (kg),Estimated,Source\n`;
     data.emissionBreakdown.forEach(e => {
@@ -224,7 +224,7 @@ ${isInvoice ? `
   <div class="kpi"><div class="kpi-label">Supplier</div><div style="font-size:16px;font-weight:600">${data.supplierName || 'Unknown'}</div></div>
   <div class="kpi"><div class="kpi-label">Invoice</div><div style="font-size:16px;font-weight:600">${data.invoiceNumber || 'Unknown'}</div></div>
   <div class="kpi"><div class="kpi-label">Date</div><div style="font-size:16px;font-weight:600">${data.invoiceDate || 'Unknown'}</div></div>
-  <div class="kpi"><div class="kpi-label">Confidence</div><div style="font-size:16px;font-weight:600;color:${data.confidence === 'high' ? '#16a34a' : data.confidence === 'medium' ? '#d97706' : '#dc2626'}">${(data.confidence || '').toUpperCase()}</div></div>
+  <div class="kpi"><div class="kpi-label">Confidence</div><div style="font-size:16px;font-weight:600;color:${data.confidenceScore >= 7 ? '#16a34a' : data.confidenceScore >= 4 ? '#d97706' : '#dc2626'}">${data.confidenceScore}/10</div></div>
 </div>
 ${data.notes ? `<div class="note">🤖 ${data.notes}</div>` : ''}
 <div class="section">
@@ -346,10 +346,10 @@ function UploadView({ onResult }) {
 
 // ── INVOICE DASHBOARD ─────────────────────────────────────────────────────────
 function InvoiceDashboard({ data, onReset }) {
-  const { fileName, totalCO2kg, totalCO2t, co2Rating, co2Color, emissionBreakdown, results, strong, weak, overallScore, supplierName, invoiceNumber, invoiceDate, confidence, notes, competitorView, recommendations } = data;
+  const { fileName, totalCO2kg, totalCO2t, co2Rating, co2Color, emissionBreakdown, results, strong, weak, overallScore, supplierName, invoiceNumber, invoiceDate, confidenceScore, notes, competitorView, recommendations } = data;
   const barData = emissionBreakdown.map(e => ({ name: e.item.length > 14 ? e.item.slice(0, 14) + '…' : e.item, co2: e.co2kg }));
   const radarData = results.map(r => ({ category: r.category.split(' ')[0], Score: r.score, Benchmark: r.benchmark }));
-  const confColor = confidence === 'high' ? '#4ade80' : confidence === 'medium' ? '#fbbf24' : '#f87171';
+  const confColor = confidenceScore >= 7 ? '#4ade80' : confidenceScore >= 4 ? '#fbbf24' : '#f87171';
 
   return (
     <div className="dashboard">
@@ -358,7 +358,7 @@ function InvoiceDashboard({ data, onReset }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div className="dash-title">Invoice CO₂ Emission Report</div>
             <span style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>INVOICE</span>
-            <span style={{ background: `rgba(${confidence === 'high' ? '74,222,128' : confidence === 'medium' ? '251,191,36' : '248,113,113'},0.12)`, color: confColor, padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>{(confidence || '').toUpperCase()} CONFIDENCE</span>
+            <span style={{ background: `${confColor}1F`, color: confColor, padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>CONFIDENCE {confidenceScore}/10</span>
           </div>
           <div className="dash-filename">📄 {fileName} · {supplierName} · {invoiceNumber} · {invoiceDate}</div>
         </div>
