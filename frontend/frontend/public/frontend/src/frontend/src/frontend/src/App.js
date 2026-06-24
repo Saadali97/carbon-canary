@@ -4,6 +4,10 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import {
+  Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow,
+  TableCell as DocxTableCell, WidthType, ShadingType, BorderStyle, AlignmentType, HeadingLevel,
+} from 'docx';
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Cell, Legend
 } from 'recharts';
@@ -289,9 +293,175 @@ function downloadPDF(data, lang) {
   doc.setFontSize(7.5);
   doc.setFont(undefined, 'italic');
   doc.setTextColor(...MUTED);
-  doc.text('Carbon Canary · Scope 3 Emission Analytics · DE/PL Corridor · Climathon 2026', 14, 290);
+  doc.text('Carbon Canary · Emission Analytics · DE/PL Corridor · Climathon 2026', 14, 290);
 
   doc.save(`carbon-canary-report-${data.fileName.replace(/\.[^.]+$/, '')}.pdf`);
+}
+
+// ── DOWNLOAD WORD REPORT ───────────────────────────────────────────────────────
+function buildDocxTable(headerRow, dataRows, colWidths) {
+  const totalWidth = colWidths.reduce((a, b) => a + b, 0);
+  const border = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
+  const borders = { top: border, bottom: border, left: border, right: border };
+
+  const headerCells = headerRow.map((text, i) => new DocxTableCell({
+    borders,
+    width: { size: colWidths[i], type: WidthType.DXA },
+    shading: { fill: '0A0F0D', type: ShadingType.CLEAR },
+    margins: { top: 80, bottom: 80, left: 100, right: 100 },
+    children: [new Paragraph({ children: [new TextRun({ text: String(text), bold: true, color: 'FFFFFF', size: 18 })] })],
+  }));
+
+  const bodyRows = dataRows.map(row => new DocxTableRow({
+    children: row.map((cell, i) => new DocxTableCell({
+      borders,
+      width: { size: colWidths[i], type: WidthType.DXA },
+      shading: { fill: 'FFFFFF', type: ShadingType.CLEAR },
+      margins: { top: 70, bottom: 70, left: 100, right: 100 },
+      children: [new Paragraph({ children: [new TextRun({ text: String(cell), size: 18 })] })],
+    })),
+  }));
+
+  return new DocxTable({
+    width: { size: totalWidth, type: WidthType.DXA },
+    columnWidths: colWidths,
+    rows: [new DocxTableRow({ children: headerCells }), ...bodyRows],
+  });
+}
+
+async function downloadWord(data, lang) {
+  const isInvoice = data.documentType === 'invoice';
+  const date = new Date().toLocaleDateString('en-GB');
+  const ACCENT = '4ADE80';
+  const FOREST = '0A0F0D';
+  const MUTED = '6B7280';
+
+  const children = [];
+
+  // Title block
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'Carbon Canary', bold: true, color: ACCENT, size: 36 })],
+      spacing: { after: 80 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: isInvoice ? t(lang, 'invoiceTitle') : t(lang, 'reportTitle'), bold: true, size: 28 })],
+      spacing: { after: 60 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `${data.fileName}  ·  ${date}  ·  Climathon 2026`, italics: true, color: MUTED, size: 18 })],
+      spacing: { after: 300 },
+    }),
+  );
+
+  if (isInvoice) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: `${t(lang, 'kpiTotalCO2')}: `, bold: true, size: 20 }),
+          new TextRun({ text: `${data.totalCO2kg} kg (${data.totalCO2t} t)   `, size: 20 }),
+          new TextRun({ text: `${t(lang, 'kpiRating')}: `, bold: true, size: 20 }),
+          new TextRun({ text: data.co2Rating, size: 20 }),
+        ],
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        children: [new TextRun({
+          text: `${data.supplierName || 'Unknown'}   ${data.invoiceNumber || 'Unknown'}   ${data.invoiceDate || 'Unknown'}`,
+          size: 18, color: MUTED,
+        })],
+        spacing: { after: 200 },
+      }),
+    );
+    if (data.notes) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: data.notes, italics: true, size: 18, color: MUTED })],
+        spacing: { after: 240 },
+      }));
+    }
+
+    children.push(new Paragraph({
+      children: [new TextRun({ text: t(lang, 'panelDetailedBreakdown'), bold: true, size: 22 })],
+      spacing: { before: 120, after: 120 },
+    }));
+    children.push(buildDocxTable(
+      [t(lang, 'thItem'), t(lang, 'thCategory'), t(lang, 'thQuantity'), t(lang, 'thEUFactor'), t(lang, 'thCO2')],
+      data.emissionBreakdown.map(e => [
+        e.item + (e.estimated ? ` (${t(lang, 'estimated')})` : ''), e.category, `${e.quantity} ${e.unit}`, e.factor, e.co2kg,
+      ]).concat([[t(lang, 'total'), '', '', '', `${data.totalCO2kg} kg`]]),
+      [3200, 1700, 1400, 1400, 1300],
+    ));
+    children.push(new Paragraph({ spacing: { after: 300 } }));
+  } else {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: `${t(lang, 'kpiOverallScore')}: `, bold: true, size: 20 }),
+          new TextRun({ text: `${data.overallScore} / 100   `, size: 20 }),
+          new TextRun({ text: `${t(lang, 'benchmarkLabel')}: `, bold: true, size: 20 }),
+          new TextRun({ text: `${data.overallBenchmark}   `, size: 20 }),
+          new TextRun({ text: `${t(lang, 'gapLabel')}: `, bold: true, size: 20 }),
+          new TextRun({ text: `${data.overallScore - data.overallBenchmark > 0 ? '+' : ''}${data.overallScore - data.overallBenchmark}`, size: 20 }),
+        ],
+        spacing: { after: 300 },
+      }),
+    );
+  }
+
+  children.push(new Paragraph({
+    children: [new TextRun({ text: t(lang, 'panelCategoryPerformance'), bold: true, size: 22 })],
+    spacing: { before: 120, after: 120 },
+  }));
+  children.push(buildDocxTable(
+    [t(lang, 'thCategory'), t(lang, 'thScore'), t(lang, 'thBenchmark'), t(lang, 'thGap'), t(lang, 'thStatus'), 'Insight'],
+    data.results.map(r => [r.category, r.score, r.benchmark, (r.gap > 0 ? '+' : '') + r.gap, r.status, r.insight]),
+    [1500, 700, 900, 700, 900, 3760],
+  ));
+
+  if (!isInvoice) {
+    children.push(new Paragraph({ spacing: { before: 300, after: 60 } }));
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: `${t(lang, 'strongAreas')}: `, bold: true, color: '16A34A', size: 20 }),
+        new TextRun({ text: data.strong.join(', ') || '-', size: 20 }),
+      ],
+      spacing: { after: 80 },
+    }));
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: `${t(lang, 'weakAreas')}: `, bold: true, color: 'DC2626', size: 20 }),
+        new TextRun({ text: data.weak.join(', ') || '-', size: 20 }),
+      ],
+      spacing: { after: 80 },
+    }));
+  }
+
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'Carbon Canary · Emission Analytics · DE/PL Corridor · Climathon 2026', italics: true, size: 16, color: MUTED })],
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 400 },
+  }));
+
+  const docx = new Document({
+    styles: { default: { document: { run: { font: 'Calibri' } } } },
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 12240, height: 15840 },
+          margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 },
+        },
+      },
+      children,
+    }],
+  });
+
+  const blob = await Packer.toBlob(docx);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `carbon-canary-report-${data.fileName.replace(/\.[^.]+$/, '')}.docx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── DOWNLOAD BUTTONS ──────────────────────────────────────────────────────────
@@ -302,6 +472,11 @@ function DownloadButtons({ data, lang }) {
         padding: '10px 20px', background: '#4ade80', color: '#050a06', border: 'none',
         borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit'
       }}>{t(lang, 'downloadPDF')}</button>
+      <button onClick={() => downloadWord(data, lang)} style={{
+        padding: '10px 20px', background: 'transparent', color: '#60a5fa',
+        border: '1px solid #60a5fa', borderRadius: 8, fontWeight: 600, fontSize: 13,
+        cursor: 'pointer', fontFamily: 'inherit'
+      }}>{t(lang, 'downloadWord')}</button>
       <button onClick={() => downloadExcel(data, lang)} style={{
         padding: '10px 20px', background: 'transparent', color: '#4ade80',
         border: '1px solid #4ade80', borderRadius: 8, fontWeight: 600, fontSize: 13,
@@ -352,7 +527,7 @@ function UploadView({ onResult, lang, setLang }) {
       <div style={{ position: 'absolute', top: 16, right: 24 }}>
         <LanguageSwitcher lang={lang} setLang={setLang} />
       </div>
-      <h1 className="upload-headline">Carbon footprint<br />extracted calculated audit ready</h1>
+      <h1 className="upload-headline">Your supplier's carbon footprint<br />extracted, calculated, audit ready</h1>
       <p className="upload-sub">
         {t(lang, 'uploadSub1')}<strong style={{ color: '#4ade80' }}>{t(lang, 'uploadSubInvoice')}</strong>{t(lang, 'uploadSub2')}<strong style={{ color: '#fbbf24' }}>{t(lang, 'uploadSubReport')}</strong>{t(lang, 'uploadSub3')}
       </p>
