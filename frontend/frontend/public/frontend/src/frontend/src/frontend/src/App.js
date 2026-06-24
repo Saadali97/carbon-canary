@@ -134,7 +134,6 @@ function downloadExcel(data, lang) {
       ['Total CO2 (kg)', data.totalCO2kg],
       ['Total CO2 (tonnes)', data.totalCO2t],
       ['Emission Rating', data.co2Rating],
-      ['Confidence Score', `${data.confidenceScore}/10`],
       ['Read via OCR', data.ocrUsed ? 'Yes' : 'No'],
     ];
     const wsSummary = XLSX.utils.aoa_to_sheet(summary);
@@ -212,7 +211,6 @@ function downloadPDF(data, lang) {
   if (isInvoice) {
     doc.text(`${t(lang, 'kpiTotalCO2')}: ${data.totalCO2kg} kg  (${data.totalCO2t} t)`, 14, y);
     doc.text(`${t(lang, 'kpiRating')}: ${data.co2Rating}`, 100, y);
-    doc.text(`${t(lang, 'badgeConfidence')}: ${data.confidenceScore}/10`, 150, y);
     y += 6;
     doc.setFont(undefined, 'normal');
     doc.setFontSize(9);
