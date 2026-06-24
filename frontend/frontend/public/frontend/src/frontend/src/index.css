@@ -70,7 +70,7 @@ body {
   margin-bottom: 16px;
 }
 .upload-headline {
-  font-size: clamp(28px, 5vw, 48px);
+  font-size: clamp(24px, 4vw, 38px);  
   font-weight: 700;
   text-align: center;
   line-height: 1.1;
