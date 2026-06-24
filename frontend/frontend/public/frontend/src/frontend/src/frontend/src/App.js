@@ -1,8 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Cell, Legend
 } from 'recharts';
 
@@ -33,6 +35,7 @@ function ScoreBar({ score, status }) {
 function CompetitorView({ competitorView }) {
   if (!competitorView) return null;
   const { leaderboard, yourRank, totalCompanies } = competitorView;
+  const chartData = leaderboard.map(c => ({ name: c.isYou ? 'You' : c.name, score: c.overallScore, isYou: c.isYou }));
 
   return (
     <div className="panel full" style={{ marginBottom: 20 }}>
@@ -50,24 +53,18 @@ function CompetitorView({ competitorView }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {leaderboard.map((c, i) => (
-          <div key={c.name} style={{
-            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,
-            background: c.isYou ? 'rgba(74,222,128,0.08)' : 'transparent',
-            border: c.isYou ? '1px solid rgba(74,222,128,0.25)' : '1px solid transparent',
-          }}>
-            <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: '#6b8f72', width: 18 }}>{i + 1}</div>
-            <div style={{
-              fontSize: 13, fontWeight: c.isYou ? 700 : 400, color: c.isYou ? '#4ade80' : '#e2f0e4', flex: 1,
-            }}>{c.isYou ? 'You' : c.name}</div>
-            <div style={{
-              fontFamily: 'IBM Plex Mono', fontSize: 14, fontWeight: 700,
-              color: c.isYou ? '#4ade80' : '#a8c4ab',
-            }}>{c.overallScore}</div>
-          </div>
-        ))}
-      </div>
+      <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 46)}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 30, bottom: 4, left: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" horizontal={false} />
+          <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b8f72', fontSize: 10 }} />
+          <YAxis type="category" dataKey="name" width={110} tick={{ fill: '#e2f0e4', fontSize: 11, fontFamily: 'IBM Plex Mono' }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey="score" name="Score" radius={[0, 4, 4, 0]} barSize={20}>
+            {chartData.map((c, i) => <Cell key={i} fill={c.isYou ? '#4ade80' : '#374a37'} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
       <div style={{ fontSize: 11, color: '#6b8f72', marginTop: 12 }}>Sample data for illustration only.</div>
     </div>
   );
@@ -100,185 +97,195 @@ function RecommendationsPanel({ recommendations }) {
   );
 }
 
-// ── DOWNLOAD CSV REPORT ───────────────────────────────────────────────────────
-function downloadCSV(data) {
+// ── DOWNLOAD EXCEL REPORT ──────────────────────────────────────────────────────
+function downloadExcel(data) {
   const isInvoice = data.documentType === 'invoice';
-  let csv = '';
+  const wb = XLSX.utils.book_new();
 
   if (isInvoice) {
-    csv += `Carbon Canary - Invoice CO2 Emission Report\n`;
-    csv += `File,${data.fileName}\n`;
-    csv += `Supplier,${data.supplierName || 'Unknown'}\n`;
-    csv += `Invoice Number,${data.invoiceNumber || 'Unknown'}\n`;
-    csv += `Invoice Date,${data.invoiceDate || 'Unknown'}\n`;
-    csv += `Total CO2 (kg),${data.totalCO2kg}\n`;
-    csv += `Total CO2 (tonnes),${data.totalCO2t}\n`;
-    csv += `Emission Rating,${data.co2Rating}\n`;
-    csv += `Confidence Score,${data.confidenceScore}/10\n\n`;
-    csv += `EMISSION BREAKDOWN\n`;
-    csv += `Item,Category,Quantity,Unit,EU Factor (kg CO2/unit),CO2 (kg),Estimated,Source\n`;
-    data.emissionBreakdown.forEach(e => {
-      csv += `${e.item},${e.category},${e.quantity},${e.unit},${e.factor},${e.co2kg},${e.estimated ? 'Yes' : 'No'},${e.source}\n`;
-    });
-    csv += `\nTOTAL,,,,, ${data.totalCO2kg} kg,,\n\n`;
-    csv += `CATEGORY PERFORMANCE\n`;
-    csv += `Category,Score,Benchmark,Gap,Status,Insight\n`;
-    data.results.forEach(r => {
-      csv += `${r.category},${r.score},${r.benchmark},${r.gap},${r.status},${r.insight}\n`;
-    });
+    const summary = [
+      ['Carbon Canary - Invoice CO2 Emission Report'],
+      ['File', data.fileName],
+      ['Supplier', data.supplierName || 'Unknown'],
+      ['Invoice Number', data.invoiceNumber || 'Unknown'],
+      ['Invoice Date', data.invoiceDate || 'Unknown'],
+      ['Total CO2 (kg)', data.totalCO2kg],
+      ['Total CO2 (tonnes)', data.totalCO2t],
+      ['Emission Rating', data.co2Rating],
+      ['Confidence Score', `${data.confidenceScore}/10`],
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+    wsSummary['!cols'] = [{ wch: 22 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    const breakdownHeader = ['Item', 'Category', 'Quantity', 'Unit', 'EU Factor (kg CO2/unit)', 'CO2 (kg)', 'Estimated'];
+    const breakdownRows = data.emissionBreakdown.map(e => [e.item, e.category, e.quantity, e.unit, e.factor, e.co2kg, e.estimated ? 'Yes' : 'No']);
+    const wsBreakdown = XLSX.utils.aoa_to_sheet([breakdownHeader, ...breakdownRows, [], ['TOTAL', '', '', '', '', data.totalCO2kg]]);
+    wsBreakdown['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 12 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, wsBreakdown, 'Emission Breakdown');
   } else {
-    csv += `Carbon Canary - CSRD Sustainability Report Scoring\n`;
-    csv += `File,${data.fileName}\n`;
-    csv += `Overall Score,${data.overallScore}\n`;
-    csv += `Industry Benchmark,${data.overallBenchmark}\n`;
-    csv += `Gap,${data.overallScore - data.overallBenchmark}\n\n`;
-    csv += `CATEGORY SCORES\n`;
-    csv += `Category,Score,Benchmark,Gap,Status,Insight\n`;
-    data.results.forEach(r => {
-      csv += `${r.category},${r.score},${r.benchmark},${r.gap},${r.status},${r.insight}\n`;
-    });
-    csv += `\nSTRONG AREAS\n`;
-    data.strong.forEach(s => { csv += `${s}\n`; });
-    csv += `\nWEAK AREAS\n`;
-    data.weak.forEach(w => { csv += `${w}\n`; });
+    const summary = [
+      ['Carbon Canary - CSRD Sustainability Report Scoring'],
+      ['File', data.fileName],
+      ['Overall Score', data.overallScore],
+      ['Industry Benchmark', data.overallBenchmark],
+      ['Gap', data.overallScore - data.overallBenchmark],
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+    wsSummary['!cols'] = [{ wch: 22 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
   }
 
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `carbon-canary-report-${data.fileName.replace(/\.[^.]+$/, '')}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const catHeader = ['Category', 'Score', 'Benchmark', 'Gap', 'Status', 'Insight'];
+  const catRows = data.results.map(r => [r.category, r.score, r.benchmark, r.gap, r.status, r.insight]);
+  const wsCat = XLSX.utils.aoa_to_sheet([catHeader, ...catRows]);
+  wsCat['!cols'] = [{ wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 50 }];
+  XLSX.utils.book_append_sheet(wb, wsCat, 'Category Performance');
+
+  if (!isInvoice) {
+    const wsStrongWeak = XLSX.utils.aoa_to_sheet([
+      ['STRONG AREAS'], ...data.strong.map(s => [s]), [],
+      ['WEAK AREAS'], ...data.weak.map(w => [w]),
+    ]);
+    wsStrongWeak['!cols'] = [{ wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, wsStrongWeak, 'Highlights');
+  }
+
+  XLSX.writeFile(wb, `carbon-canary-report-${data.fileName.replace(/\.[^.]+$/, '')}.xlsx`);
 }
 
-// ── DOWNLOAD HTML REPORT ──────────────────────────────────────────────────────
-function downloadHTML(data) {
+// ── DOWNLOAD PDF REPORT ────────────────────────────────────────────────────────
+function downloadPDF(data) {
   const isInvoice = data.documentType === 'invoice';
   const date = new Date().toLocaleDateString('en-GB');
+  const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+  const GREEN = [74, 222, 128];
+  const FOREST = [10, 15, 13];
+  const INK = [30, 30, 30];
+  const MUTED = [110, 120, 115];
 
-  const rowsHTML = isInvoice
-    ? (data.emissionBreakdown || []).map(e => `
-      <tr>
-        <td>${e.item}${e.estimated ? ' <span style="color:#f59e0b;font-size:11px">⚠ est.</span>' : ''}</td>
-        <td>${e.category}</td>
-        <td>${e.quantity} ${e.unit}</td>
-        <td>${e.factor}</td>
-        <td><strong>${e.co2kg}</strong></td>
-        <td style="font-size:11px;color:#6b7280">${e.source}</td>
-      </tr>`).join('')
-    : '';
+  // Header band
+  doc.setFillColor(...FOREST);
+  doc.rect(0, 0, pageW, 32, 'F');
+  doc.setTextColor(...GREEN);
+  doc.setFontSize(16);
+  doc.setFont(undefined, 'bold');
+  doc.text('Carbon Canary', 14, 14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(12);
+  doc.text(isInvoice ? 'Invoice CO2 Emission Report' : 'CSRD Sustainability Report Scoring', 14, 22);
+  doc.setFontSize(8);
+  doc.setTextColor(200, 220, 205);
+  doc.setFont(undefined, 'normal');
+  doc.text(`${data.fileName}  ·  Generated ${date}  ·  Climathon 2026`, 14, 28);
 
-  const catRows = (data.results || []).map(r => `
-    <tr>
-      <td><strong>${r.category}</strong><br><span style="font-size:11px;color:#6b7280">${r.description}</span></td>
-      <td style="color:${r.status === 'above' ? '#16a34a' : r.status === 'below' ? '#dc2626' : '#d97706'};font-weight:700">${r.score}</td>
-      <td>${r.benchmark}</td>
-      <td style="color:${r.gap >= 0 ? '#16a34a' : '#dc2626'}">${r.gap > 0 ? '+' : ''}${r.gap}</td>
-      <td><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${r.status === 'above' ? '#dcfce7' : r.status === 'below' ? '#fee2e2' : '#fef9c3'};color:${r.status === 'above' ? '#15803d' : r.status === 'below' ? '#b91c1c' : '#a16207'}">${r.status}</span></td>
-      <td style="font-size:12px;color:#374151">${r.insight}</td>
-    </tr>`).join('');
+  let y = 42;
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Carbon Canary Report - ${data.fileName}</title>
-<style>
-  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; background: #f9fafb; color: #111827; }
-  .header { background: #0a0f0d; color: white; padding: 32px 40px; border-radius: 12px; margin-bottom: 32px; }
-  .logo { color: #4ade80; font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-  .title { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
-  .meta { color: #6b7280; font-size: 13px; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
-  .kpi { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
-  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 8px; }
-  .kpi-value { font-size: 32px; font-weight: 700; color: #111827; }
-  .kpi-sub { font-size: 12px; color: #6b7280; margin-top: 4px; }
-  .section { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin-bottom: 24px; }
-  .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: #6b7280; margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; }
-  td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
-  .total-row td { font-weight: 700; font-size: 15px; border-top: 2px solid #e5e7eb; background: #f9fafb; }
-  .co2-big { font-size: 48px; font-weight: 700; color: ${data.co2Color === 'above' ? '#16a34a' : data.co2Color === 'below' ? '#dc2626' : '#d97706'}; }
-  .note { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #15803d; margin-bottom: 24px; }
-  .footer { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 40px; }
-  @media print { body { padding: 20px; } }
-</style>
-</head>
-<body>
-<div class="header">
-  <div class="logo">🐦 Carbon Canary</div>
-  <div class="title">${isInvoice ? 'Invoice CO₂ Emission Report' : 'CSRD Sustainability Report Scoring'}</div>
-  <div class="meta">📄 ${data.fileName} · Generated ${date} · Climathon 2026</div>
-</div>
+  // KPI summary line
+  doc.setTextColor(...INK);
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'bold');
+  if (isInvoice) {
+    doc.text(`Total CO2: ${data.totalCO2kg} kg  (${data.totalCO2t} t)`, 14, y);
+    doc.text(`Rating: ${data.co2Rating}`, 100, y);
+    doc.text(`Confidence: ${data.confidenceScore}/10`, 150, y);
+    y += 6;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.text(`Supplier: ${data.supplierName || 'Unknown'}   Invoice: ${data.invoiceNumber || 'Unknown'}   Date: ${data.invoiceDate || 'Unknown'}`, 14, y);
+    y += 8;
+    if (data.notes) {
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(8);
+      const noteLines = doc.splitTextToSize(data.notes, pageW - 28);
+      doc.text(noteLines, 14, y);
+      y += noteLines.length * 4 + 4;
+    }
+  } else {
+    doc.text(`Overall Score: ${data.overallScore} / 100`, 14, y);
+    doc.text(`Benchmark: ${data.overallBenchmark}`, 90, y);
+    doc.text(`Gap: ${data.overallScore - data.overallBenchmark > 0 ? '+' : ''}${data.overallScore - data.overallBenchmark}`, 150, y);
+    y += 8;
+  }
 
-${isInvoice ? `
-<div class="kpi-grid">
-  <div class="kpi" style="grid-column:span 2">
-    <div class="kpi-label">Total CO₂ Emissions</div>
-    <div class="co2-big">${data.totalCO2kg} <span style="font-size:20px;color:#6b7280">kg</span></div>
-    <div class="kpi-sub">${data.totalCO2t} tonnes CO₂eq · Rating: <strong>${data.co2Rating}</strong></div>
-  </div>
-  <div class="kpi"><div class="kpi-label">Supplier</div><div style="font-size:16px;font-weight:600">${data.supplierName || 'Unknown'}</div></div>
-  <div class="kpi"><div class="kpi-label">Invoice</div><div style="font-size:16px;font-weight:600">${data.invoiceNumber || 'Unknown'}</div></div>
-  <div class="kpi"><div class="kpi-label">Date</div><div style="font-size:16px;font-weight:600">${data.invoiceDate || 'Unknown'}</div></div>
-  <div class="kpi"><div class="kpi-label">Confidence</div><div style="font-size:16px;font-weight:600;color:${data.confidenceScore >= 7 ? '#16a34a' : data.confidenceScore >= 4 ? '#d97706' : '#dc2626'}">${data.confidenceScore}/10</div></div>
-</div>
-${data.notes ? `<div class="note">🤖 ${data.notes}</div>` : ''}
-<div class="section">
-  <div class="section-title">Emission Breakdown by Line Item</div>
-  <table>
-    <thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>EU Factor</th><th>CO₂ (kg)</th><th>Source</th></tr></thead>
-    <tbody>${rowsHTML}</tbody>
-    <tfoot><tr class="total-row"><td colspan="4">TOTAL CO₂ EMISSIONS</td><td>${data.totalCO2kg} kg</td><td></td></tr></tfoot>
-  </table>
-</div>` : `
-<div class="kpi-grid">
-  <div class="kpi"><div class="kpi-label">Overall Score</div><div class="kpi-value">${data.overallScore}</div><div class="kpi-sub">Benchmark: ${data.overallBenchmark}/100</div></div>
-  <div class="kpi"><div class="kpi-label">Strong Areas</div><div class="kpi-value" style="color:#16a34a">${data.strong.length}</div></div>
-  <div class="kpi"><div class="kpi-label">Weak Areas</div><div class="kpi-value" style="color:#dc2626">${data.weak.length}</div></div>
-  <div class="kpi"><div class="kpi-label">vs Benchmark</div><div class="kpi-value" style="color:${data.overallScore >= data.overallBenchmark ? '#16a34a' : '#dc2626'}">${data.overallScore - data.overallBenchmark > 0 ? '+' : ''}${data.overallScore - data.overallBenchmark}</div></div>
-</div>`}
+  // Emission breakdown table (invoice only)
+  if (isInvoice) {
+    doc.setTextColor(...INK);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Emission Breakdown', 14, y);
+    y += 4;
+    autoTable(doc, {
+      startY: y,
+      head: [['Item', 'Category', 'Quantity', 'EU Factor', 'CO2 (kg)']],
+      body: data.emissionBreakdown.map(e => [
+        e.item + (e.estimated ? ' (est.)' : ''), e.category, `${e.quantity} ${e.unit}`, e.factor, e.co2kg,
+      ]),
+      foot: [['TOTAL', '', '', '', `${data.totalCO2kg} kg`]],
+      theme: 'striped',
+      headStyles: { fillColor: FOREST, textColor: 255, fontSize: 8 },
+      footStyles: { fillColor: [230, 240, 232], textColor: INK, fontStyle: 'bold', fontSize: 8 },
+      bodyStyles: { fontSize: 8 },
+      margin: { left: 14, right: 14 },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
 
-<div class="section">
-  <div class="section-title">Category Performance vs Benchmark</div>
-  <table>
-    <thead><tr><th>Category</th><th>Score</th><th>Benchmark</th><th>Gap</th><th>Status</th><th>Insight</th></tr></thead>
-    <tbody>${catRows}</tbody>
-  </table>
-</div>
+  // Category performance table
+  if (y > 250) { doc.addPage(); y = 16; }
+  doc.setTextColor(...INK);
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Category Performance vs Benchmark', 14, y);
+  y += 4;
+  autoTable(doc, {
+    startY: y,
+    head: [['Category', 'Score', 'Benchmark', 'Gap', 'Status', 'Insight']],
+    body: data.results.map(r => [r.category, r.score, r.benchmark, (r.gap > 0 ? '+' : '') + r.gap, r.status, r.insight]),
+    theme: 'striped',
+    headStyles: { fillColor: FOREST, textColor: 255, fontSize: 8 },
+    bodyStyles: { fontSize: 7.5 },
+    columnStyles: { 5: { cellWidth: 60 } },
+    margin: { left: 14, right: 14 },
+  });
+  y = doc.lastAutoTable.finalY + 10;
 
-<div class="footer">
-  Carbon Canary · Scope 3 Emission Analytics · DE/PL Corridor · Climathon 2026<br>
-  Data sources: EU JRC Emission Factor Database 2023, IPCC AR6
-</div>
-</body>
-</html>`;
+  // Strong / Weak (report mode)
+  if (!isInvoice) {
+    if (y > 260) { doc.addPage(); y = 16; }
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(22, 163, 74);
+    doc.text(`Strong Areas: ${data.strong.join(', ') || 'None'}`, 14, y);
+    y += 6;
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Weak Areas: ${data.weak.join(', ') || 'None'}`, 14, y);
+    y += 10;
+  }
 
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `carbon-canary-report-${data.fileName.replace(/\.[^.]+$/, '')}.html`;
-  a.click();
-  URL.revokeObjectURL(url);
+  // Footer
+  doc.setFontSize(7.5);
+  doc.setFont(undefined, 'italic');
+  doc.setTextColor(...MUTED);
+  doc.text('Carbon Canary · Scope 3 Emission Analytics · DE/PL Corridor · Climathon 2026', 14, 290);
+
+  doc.save(`carbon-canary-report-${data.fileName.replace(/\.[^.]+$/, '')}.pdf`);
 }
 
 // ── DOWNLOAD BUTTONS ──────────────────────────────────────────────────────────
 function DownloadButtons({ data }) {
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-      <button onClick={() => downloadHTML(data)} style={{
+      <button onClick={() => downloadPDF(data)} style={{
         padding: '10px 20px', background: '#4ade80', color: '#050a06', border: 'none',
         borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit'
-      }}>⬇ Download HTML Report</button>
-      <button onClick={() => downloadCSV(data)} style={{
+      }}>⬇ Download PDF Report</button>
+      <button onClick={() => downloadExcel(data)} style={{
         padding: '10px 20px', background: 'transparent', color: '#4ade80',
         border: '1px solid #4ade80', borderRadius: 8, fontWeight: 600, fontSize: 13,
         cursor: 'pointer', fontFamily: 'inherit'
-      }}>⬇ Download CSV Data</button>
+      }}>⬇ Download Excel Data</button>
     </div>
   );
 }
@@ -397,16 +404,17 @@ function InvoiceDashboard({ data, onReset }) {
           </ResponsiveContainer>
         </div>
         <div className="panel">
-          <div className="panel-title">Radar Overview</div>
+          <div className="panel-title">Score vs Benchmark by Category</div>
           <ResponsiveContainer width="100%" height={260}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="#1e2b1e" />
-              <PolarAngleAxis dataKey="category" tick={{ fill: '#6b8f72', fontSize: 10, fontFamily: 'IBM Plex Mono' }} />
-              <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar name="Score" dataKey="Score" stroke="#4ade80" fill="#4ade80" fillOpacity={0.15} />
-              <Radar name="Benchmark" dataKey="Benchmark" stroke="#fbbf24" fill="#fbbf24" fillOpacity={0.08} strokeDasharray="4 2" />
+            <BarChart data={radarData} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" horizontal={false} />
+              <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b8f72', fontSize: 10 }} />
+              <YAxis type="category" dataKey="category" width={90} tick={{ fill: '#e2f0e4', fontSize: 11, fontFamily: 'IBM Plex Mono' }} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'IBM Plex Mono', color: '#6b8f72' }} />
-            </RadarChart>
+              <Bar dataKey="Score" fill="#4ade80" radius={[0, 4, 4, 0]} barSize={14} />
+              <Bar dataKey="Benchmark" fill="#fbbf24" radius={[0, 4, 4, 0]} barSize={14} fillOpacity={0.5} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
@@ -415,7 +423,7 @@ function InvoiceDashboard({ data, onReset }) {
         <div className="panel-title">Detailed Emission Breakdown</div>
         <div style={{ overflowX: 'auto' }}>
           <table className="cat-table">
-            <thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>EU Factor (kg/unit)</th><th style={{ textAlign: 'right' }}>CO₂ (kg)</th><th>Source</th></tr></thead>
+            <thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>EU Factor (kg/unit)</th><th style={{ textAlign: 'right' }}>CO₂ (kg)</th></tr></thead>
             <tbody>
               {emissionBreakdown.map((e, i) => (
                 <tr key={i}>
@@ -424,13 +432,11 @@ function InvoiceDashboard({ data, onReset }) {
                   <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 12 }}>{e.quantity} {e.unit}</td>
                   <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: '#6b8f72' }}>{e.factor}</td>
                   <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 14, fontWeight: 700, color: '#4ade80', textAlign: 'right' }}>{e.co2kg}</td>
-                  <td style={{ fontSize: 10, color: '#6b8f72' }}>{e.source}</td>
                 </tr>
               ))}
               <tr style={{ borderTop: '2px solid #1e2b1e' }}>
-                <td colSpan={4} style={{ fontWeight: 700, fontSize: 14 }}>TOTAL</td>
-                <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 18, fontWeight: 700, color: co2Color === 'above' ? '#4ade80' : co2Color === 'below' ? '#f87171' : '#fbbf24', textAlign: 'right' }}>{totalCO2kg} kg</td>
-                <td />
+                <td colSpan={3} style={{ fontWeight: 700, fontSize: 14 }}>TOTAL</td>
+                <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 18, fontWeight: 700, color: co2Color === 'above' ? '#4ade80' : co2Color === 'below' ? '#f87171' : '#fbbf24', textAlign: 'right' }} colSpan={2}>{totalCO2kg} kg</td>
               </tr>
             </tbody>
           </table>
@@ -525,16 +531,17 @@ function ReportDashboard({ data, onReset }) {
           </ResponsiveContainer>
         </div>
         <div className="panel">
-          <div className="panel-title">Radar Overview</div>
+          <div className="panel-title">Score vs Benchmark by Category</div>
           <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="#1e2b1e" />
-              <PolarAngleAxis dataKey="category" tick={{ fill: '#6b8f72', fontSize: 10, fontFamily: 'IBM Plex Mono' }} />
-              <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar name="Score" dataKey="Score" stroke="#4ade80" fill="#4ade80" fillOpacity={0.15} />
-              <Radar name="Benchmark" dataKey="Benchmark" stroke="#fbbf24" fill="#fbbf24" fillOpacity={0.08} strokeDasharray="4 2" />
+            <BarChart data={radarData} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" horizontal={false} />
+              <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b8f72', fontSize: 10 }} />
+              <YAxis type="category" dataKey="category" width={90} tick={{ fill: '#e2f0e4', fontSize: 11, fontFamily: 'IBM Plex Mono' }} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'IBM Plex Mono', color: '#6b8f72' }} />
-            </RadarChart>
+              <Bar dataKey="Score" fill="#4ade80" radius={[0, 4, 4, 0]} barSize={14} />
+              <Bar dataKey="Benchmark" fill="#fbbf24" radius={[0, 4, 4, 0]} barSize={14} fillOpacity={0.5} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
