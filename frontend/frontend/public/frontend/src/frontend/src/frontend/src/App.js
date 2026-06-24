@@ -7,6 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Cell, Legend
 } from 'recharts';
+import { LANGS, LANG_LABEL, t } from './translations';
 
 const API = 'https://carbon-canary.onrender.com';
 const STATUS_COLOR = { above: '#4ade80', average: '#fbbf24', below: '#f87171' };
@@ -31,15 +32,36 @@ function ScoreBar({ score, status }) {
   );
 }
 
+// ── LANGUAGE SWITCHER ─────────────────────────────────────────────────────────
+function LanguageSwitcher({ lang, setLang }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, background: '#111916', border: '1px solid #1e2b1e', borderRadius: 8, padding: 3 }}>
+      {LANGS.map((l) => (
+        <button
+          key={l}
+          onClick={() => setLang(l)}
+          style={{
+            padding: '5px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            fontFamily: 'IBM Plex Mono', fontSize: 11, fontWeight: 700,
+            background: lang === l ? '#4ade80' : 'transparent',
+            color: lang === l ? '#050a06' : '#6b8f72',
+            transition: 'all 0.15s',
+          }}
+        >{LANG_LABEL[l]}</button>
+      ))}
+    </div>
+  );
+}
+
 // ── COMPETITOR VIEW (simple) ──────────────────────────────────────────────────
-function CompetitorView({ competitorView }) {
+function CompetitorView({ competitorView, lang }) {
   if (!competitorView) return null;
   const { leaderboard, yourRank, totalCompanies } = competitorView;
   const chartData = leaderboard.map(c => ({ name: c.isYou ? 'You' : c.name, score: c.overallScore, isYou: c.isYou }));
 
   return (
     <div className="panel full" style={{ marginBottom: 20 }}>
-      <div className="panel-title">How You Compare</div>
+      <div className="panel-title">{t(lang, 'panelHowYouCompare')}</div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <div style={{
@@ -48,8 +70,8 @@ function CompetitorView({ competitorView }) {
           fontFamily: 'IBM Plex Mono', fontSize: 22, fontWeight: 700, color: '#4ade80', flexShrink: 0,
         }}>#{yourRank}</div>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>You rank #{yourRank} of {totalCompanies}</div>
-          <div style={{ fontSize: 12, color: '#6b8f72' }}>Compared to similar companies (sample data)</div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>{t(lang, 'youRank', { rank: yourRank, total: totalCompanies })}</div>
+          <div style={{ fontSize: 12, color: '#6b8f72' }}>{t(lang, 'comparedToSimilar')}</div>
         </div>
       </div>
 
@@ -59,24 +81,24 @@ function CompetitorView({ competitorView }) {
           <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b8f72', fontSize: 10 }} />
           <YAxis type="category" dataKey="name" width={110} tick={{ fill: '#e2f0e4', fontSize: 11, fontFamily: 'IBM Plex Mono' }} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="score" name="Score" radius={[0, 4, 4, 0]} barSize={20}>
+          <Bar dataKey="score" name={t(lang, 'thScore')} radius={[0, 4, 4, 0]} barSize={20}>
             {chartData.map((c, i) => <Cell key={i} fill={c.isYou ? '#4ade80' : '#374a37'} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
 
-      <div style={{ fontSize: 11, color: '#6b8f72', marginTop: 12 }}>Sample data for illustration only.</div>
+      <div style={{ fontSize: 11, color: '#6b8f72', marginTop: 12 }}>{t(lang, 'sampleDataNote')}</div>
     </div>
   );
 }
 
 // ── RECOMMENDATIONS PANEL (simple) ────────────────────────────────────────────
-function RecommendationsPanel({ recommendations }) {
+function RecommendationsPanel({ recommendations, lang }) {
   if (!recommendations || recommendations.length === 0) return null;
 
   return (
     <div className="panel full" style={{ marginBottom: 20 }}>
-      <div className="panel-title">What To Improve</div>
+      <div className="panel-title">{t(lang, 'panelWhatToImprove')}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {recommendations.map((rec) => (
           <div key={rec.category} style={{
@@ -98,7 +120,7 @@ function RecommendationsPanel({ recommendations }) {
 }
 
 // ── DOWNLOAD EXCEL REPORT ──────────────────────────────────────────────────────
-function downloadExcel(data) {
+function downloadExcel(data, lang) {
   const isInvoice = data.documentType === 'invoice';
   const wb = XLSX.utils.book_new();
 
@@ -113,14 +135,15 @@ function downloadExcel(data) {
       ['Total CO2 (tonnes)', data.totalCO2t],
       ['Emission Rating', data.co2Rating],
       ['Confidence Score', `${data.confidenceScore}/10`],
+      ['Read via OCR', data.ocrUsed ? 'Yes' : 'No'],
     ];
     const wsSummary = XLSX.utils.aoa_to_sheet(summary);
     wsSummary['!cols'] = [{ wch: 22 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
-    const breakdownHeader = ['Item', 'Category', 'Quantity', 'Unit', 'EU Factor (kg CO2/unit)', 'CO2 (kg)', 'Estimated'];
+    const breakdownHeader = [t(lang, 'thItem'), t(lang, 'thCategory'), t(lang, 'thQuantity'), 'Unit', t(lang, 'thEUFactor'), t(lang, 'thCO2'), t(lang, 'estimated')];
     const breakdownRows = data.emissionBreakdown.map(e => [e.item, e.category, e.quantity, e.unit, e.factor, e.co2kg, e.estimated ? 'Yes' : 'No']);
-    const wsBreakdown = XLSX.utils.aoa_to_sheet([breakdownHeader, ...breakdownRows, [], ['TOTAL', '', '', '', '', data.totalCO2kg]]);
+    const wsBreakdown = XLSX.utils.aoa_to_sheet([breakdownHeader, ...breakdownRows, [], [t(lang, 'total'), '', '', '', '', data.totalCO2kg]]);
     wsBreakdown['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 12 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, wsBreakdown, 'Emission Breakdown');
   } else {
@@ -136,7 +159,7 @@ function downloadExcel(data) {
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
   }
 
-  const catHeader = ['Category', 'Score', 'Benchmark', 'Gap', 'Status', 'Insight'];
+  const catHeader = [t(lang, 'thCategory'), t(lang, 'thScore'), t(lang, 'thBenchmark'), t(lang, 'thGap'), t(lang, 'thStatus'), 'Insight'];
   const catRows = data.results.map(r => [r.category, r.score, r.benchmark, r.gap, r.status, r.insight]);
   const wsCat = XLSX.utils.aoa_to_sheet([catHeader, ...catRows]);
   wsCat['!cols'] = [{ wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 50 }];
@@ -155,7 +178,7 @@ function downloadExcel(data) {
 }
 
 // ── DOWNLOAD PDF REPORT ────────────────────────────────────────────────────────
-function downloadPDF(data) {
+function downloadPDF(data, lang) {
   const isInvoice = data.documentType === 'invoice';
   const date = new Date().toLocaleDateString('en-GB');
   const doc = new jsPDF();
@@ -174,11 +197,11 @@ function downloadPDF(data) {
   doc.text('Carbon Canary', 14, 14);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(12);
-  doc.text(isInvoice ? 'Invoice CO2 Emission Report' : 'CSRD Sustainability Report Scoring', 14, 22);
+  doc.text(isInvoice ? t(lang, 'invoiceTitle') : t(lang, 'reportTitle'), 14, 22);
   doc.setFontSize(8);
   doc.setTextColor(200, 220, 205);
   doc.setFont(undefined, 'normal');
-  doc.text(`${data.fileName}  ·  Generated ${date}  ·  Climathon 2026`, 14, 28);
+  doc.text(`${data.fileName}  ·  ${date}  ·  Climathon 2026`, 14, 28);
 
   let y = 42;
 
@@ -187,13 +210,13 @@ function downloadPDF(data) {
   doc.setFontSize(10);
   doc.setFont(undefined, 'bold');
   if (isInvoice) {
-    doc.text(`Total CO2: ${data.totalCO2kg} kg  (${data.totalCO2t} t)`, 14, y);
-    doc.text(`Rating: ${data.co2Rating}`, 100, y);
-    doc.text(`Confidence: ${data.confidenceScore}/10`, 150, y);
+    doc.text(`${t(lang, 'kpiTotalCO2')}: ${data.totalCO2kg} kg  (${data.totalCO2t} t)`, 14, y);
+    doc.text(`${t(lang, 'kpiRating')}: ${data.co2Rating}`, 100, y);
+    doc.text(`${t(lang, 'badgeConfidence')}: ${data.confidenceScore}/10`, 150, y);
     y += 6;
     doc.setFont(undefined, 'normal');
     doc.setFontSize(9);
-    doc.text(`Supplier: ${data.supplierName || 'Unknown'}   Invoice: ${data.invoiceNumber || 'Unknown'}   Date: ${data.invoiceDate || 'Unknown'}`, 14, y);
+    doc.text(`${data.supplierName || 'Unknown'}   ${data.invoiceNumber || 'Unknown'}   ${data.invoiceDate || 'Unknown'}`, 14, y);
     y += 8;
     if (data.notes) {
       doc.setTextColor(...MUTED);
@@ -203,9 +226,9 @@ function downloadPDF(data) {
       y += noteLines.length * 4 + 4;
     }
   } else {
-    doc.text(`Overall Score: ${data.overallScore} / 100`, 14, y);
-    doc.text(`Benchmark: ${data.overallBenchmark}`, 90, y);
-    doc.text(`Gap: ${data.overallScore - data.overallBenchmark > 0 ? '+' : ''}${data.overallScore - data.overallBenchmark}`, 150, y);
+    doc.text(`${t(lang, 'kpiOverallScore')}: ${data.overallScore} / 100`, 14, y);
+    doc.text(`${t(lang, 'benchmarkLabel')}: ${data.overallBenchmark}`, 90, y);
+    doc.text(`${t(lang, 'gapLabel')}: ${data.overallScore - data.overallBenchmark > 0 ? '+' : ''}${data.overallScore - data.overallBenchmark}`, 150, y);
     y += 8;
   }
 
@@ -214,15 +237,15 @@ function downloadPDF(data) {
     doc.setTextColor(...INK);
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
-    doc.text('Emission Breakdown', 14, y);
+    doc.text(t(lang, 'panelDetailedBreakdown'), 14, y);
     y += 4;
     autoTable(doc, {
       startY: y,
-      head: [['Item', 'Category', 'Quantity', 'EU Factor', 'CO2 (kg)']],
+      head: [[t(lang, 'thItem'), t(lang, 'thCategory'), t(lang, 'thQuantity'), t(lang, 'thEUFactor'), t(lang, 'thCO2')]],
       body: data.emissionBreakdown.map(e => [
-        e.item + (e.estimated ? ' (est.)' : ''), e.category, `${e.quantity} ${e.unit}`, e.factor, e.co2kg,
+        e.item + (e.estimated ? ` (${t(lang, 'estimated')})` : ''), e.category, `${e.quantity} ${e.unit}`, e.factor, e.co2kg,
       ]),
-      foot: [['TOTAL', '', '', '', `${data.totalCO2kg} kg`]],
+      foot: [[t(lang, 'total'), '', '', '', `${data.totalCO2kg} kg`]],
       theme: 'striped',
       headStyles: { fillColor: FOREST, textColor: 255, fontSize: 8 },
       footStyles: { fillColor: [230, 240, 232], textColor: INK, fontStyle: 'bold', fontSize: 8 },
@@ -237,11 +260,11 @@ function downloadPDF(data) {
   doc.setTextColor(...INK);
   doc.setFontSize(11);
   doc.setFont(undefined, 'bold');
-  doc.text('Category Performance vs Benchmark', 14, y);
+  doc.text(t(lang, 'panelCategoryPerformance'), 14, y);
   y += 4;
   autoTable(doc, {
     startY: y,
-    head: [['Category', 'Score', 'Benchmark', 'Gap', 'Status', 'Insight']],
+    head: [[t(lang, 'thCategory'), t(lang, 'thScore'), t(lang, 'thBenchmark'), t(lang, 'thGap'), t(lang, 'thStatus'), 'Insight']],
     body: data.results.map(r => [r.category, r.score, r.benchmark, (r.gap > 0 ? '+' : '') + r.gap, r.status, r.insight]),
     theme: 'striped',
     headStyles: { fillColor: FOREST, textColor: 255, fontSize: 8 },
@@ -257,10 +280,10 @@ function downloadPDF(data) {
     doc.setFontSize(9);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(22, 163, 74);
-    doc.text(`Strong Areas: ${data.strong.join(', ') || 'None'}`, 14, y);
+    doc.text(`${t(lang, 'strongAreas')}: ${data.strong.join(', ') || '-'}`, 14, y);
     y += 6;
     doc.setTextColor(220, 38, 38);
-    doc.text(`Weak Areas: ${data.weak.join(', ') || 'None'}`, 14, y);
+    doc.text(`${t(lang, 'weakAreas')}: ${data.weak.join(', ') || '-'}`, 14, y);
     y += 10;
   }
 
@@ -274,24 +297,24 @@ function downloadPDF(data) {
 }
 
 // ── DOWNLOAD BUTTONS ──────────────────────────────────────────────────────────
-function DownloadButtons({ data }) {
+function DownloadButtons({ data, lang }) {
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-      <button onClick={() => downloadPDF(data)} style={{
+      <button onClick={() => downloadPDF(data, lang)} style={{
         padding: '10px 20px', background: '#4ade80', color: '#050a06', border: 'none',
         borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit'
-      }}>⬇ Download PDF Report</button>
-      <button onClick={() => downloadExcel(data)} style={{
+      }}>{t(lang, 'downloadPDF')}</button>
+      <button onClick={() => downloadExcel(data, lang)} style={{
         padding: '10px 20px', background: 'transparent', color: '#4ade80',
         border: '1px solid #4ade80', borderRadius: 8, fontWeight: 600, fontSize: 13,
         cursor: 'pointer', fontFamily: 'inherit'
-      }}>⬇ Download Excel Data</button>
+      }}>{t(lang, 'downloadExcel')}</button>
     </div>
   );
 }
 
 // ── UPLOAD VIEW ───────────────────────────────────────────────────────────────
-function UploadView({ onResult }) {
+function UploadView({ onResult, lang, setLang }) {
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -310,50 +333,59 @@ function UploadView({ onResult }) {
       const { data } = await axios.post(`${API}/api/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       onResult(data);
     } catch (err) {
-      setError(err.response?.data?.error || 'Upload failed. Please try again.');
+      setError(err.response?.data?.error || t(lang, 'uploadFailed'));
     } finally { setLoading(false); }
   };
+
+  const isImageFile = file && /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name);
 
   if (loading) return (
     <div className="upload-section">
       <div className="loading">
         <div className="spinner" />
-        <div className="loading-text">Analyzing document & calculating CO₂…</div>
+        <div className="loading-text">{isImageFile ? t(lang, 'loadingOCR') : t(lang, 'loadingDefault')}</div>
+        {isImageFile && <div style={{ fontFamily: 'IBM Plex Mono', fontSize: 11, color: '#6b8f72', marginTop: 8 }}>{t(lang, 'loadingOCRSub')}</div>}
       </div>
     </div>
   );
 
   return (
     <div className="upload-section">
+      <div style={{ position: 'absolute', top: 16, right: 24 }}>
+        <LanguageSwitcher lang={lang} setLang={setLang} />
+      </div>
       <div className="upload-eyebrow">🐦 Carbon Canary</div>
-      <h1 className="upload-headline">Scope 3 <em>Carbon</em><br />Intelligence Dashboard</h1>
-      <p className="upload-sub">Upload a <strong style={{ color: '#4ade80' }}>supplier invoice</strong> to calculate CO₂, or a <strong style={{ color: '#fbbf24' }}>sustainability report</strong> to score CSRD compliance.</p>
+      <h1 className="upload-headline">{t(lang, 'uploadHeadlinePre')}<em>{t(lang, 'uploadHeadlineEm')}</em><br />{t(lang, 'uploadHeadlinePost')}</h1>
+      <p className="upload-sub">
+        {t(lang, 'uploadSub1')}<strong style={{ color: '#4ade80' }}>{t(lang, 'uploadSubInvoice')}</strong>{t(lang, 'uploadSub2')}<strong style={{ color: '#fbbf24' }}>{t(lang, 'uploadSubReport')}</strong>{t(lang, 'uploadSub3')}
+      </p>
       <div className={`dropzone${dragging ? ' active' : ''}`}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current.click()}>
-        <input ref={inputRef} type="file" accept=".pdf,.xlsx,.xls,.csv,.txt"
+        <input ref={inputRef} type="file" accept=".pdf,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.webp,.bmp"
           onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
           onClick={(e) => e.stopPropagation()} />
         <div className="dropzone-icon">📄</div>
-        <div className="dropzone-label">Drop your file here or click to browse</div>
-        <div className="dropzone-types">PDF · XLSX · CSV · TXT</div>
+        <div className="dropzone-label">{t(lang, 'dropHere')}</div>
+        <div className="dropzone-types">{t(lang, 'fileTypes')}</div>
       </div>
       {file && <div className="file-selected"><span>✓</span><span>{file.name}</span><span style={{ color: '#6b8f72' }}>({(file.size / 1024).toFixed(1)} KB)</span></div>}
       {error && <div className="error-box">{error}</div>}
       <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#4ade80', fontFamily: 'IBM Plex Mono' }}>📦 Invoice → CO₂ Calculation</div>
-        <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#fbbf24', fontFamily: 'IBM Plex Mono' }}>📊 Report → CSRD Scoring</div>
+        <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#4ade80', fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeInvoice')}</div>
+        <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#fbbf24', fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeReport')}</div>
+        <div style={{ background: 'rgba(168,196,171,0.08)', border: '1px solid rgba(168,196,171,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#a8c4ab', fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgePhoto')}</div>
       </div>
-      <button className="upload-btn" disabled={!file} onClick={handleSubmit} style={{ marginTop: 20 }}>Analyze Document →</button>
+      <button className="upload-btn" disabled={!file} onClick={handleSubmit} style={{ marginTop: 20 }}>{t(lang, 'analyzeBtn')}</button>
     </div>
   );
 }
 
 // ── INVOICE DASHBOARD ─────────────────────────────────────────────────────────
-function InvoiceDashboard({ data, onReset }) {
-  const { fileName, totalCO2kg, totalCO2t, co2Rating, co2Color, emissionBreakdown, results, strong, weak, overallScore, supplierName, invoiceNumber, invoiceDate, confidenceScore, notes, competitorView, recommendations } = data;
+function InvoiceDashboard({ data, onReset, lang, setLang }) {
+  const { fileName, totalCO2kg, totalCO2t, co2Rating, co2Color, emissionBreakdown, results, strong, weak, overallScore, supplierName, invoiceNumber, invoiceDate, confidenceScore, notes, competitorView, recommendations, ocrUsed } = data;
   const barData = emissionBreakdown.map(e => ({ name: e.item.length > 14 ? e.item.slice(0, 14) + '…' : e.item, co2: e.co2kg }));
   const radarData = results.map(r => ({ category: r.category.split(' ')[0], Score: r.score, Benchmark: r.benchmark }));
   const confColor = confidenceScore >= 7 ? '#4ade80' : confidenceScore >= 4 ? '#fbbf24' : '#f87171';
@@ -363,48 +395,50 @@ function InvoiceDashboard({ data, onReset }) {
       <div className="dash-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div className="dash-title">Invoice CO₂ Emission Report</div>
-            <span style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>INVOICE</span>
-            <span style={{ background: `${confColor}1F`, color: confColor, padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>CONFIDENCE {confidenceScore}/10</span>
+            <div className="dash-title">{t(lang, 'invoiceTitle')}</div>
+            <span style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeInvoiceShort')}</span>
+            {ocrUsed && <span style={{ background: 'rgba(168,196,171,0.12)', color: '#a8c4ab', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeOCR')}</span>}
+            <span style={{ background: `${confColor}1F`, color: confColor, padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeConfidence')} {confidenceScore}/10</span>
           </div>
           <div className="dash-filename">📄 {fileName} · {supplierName} · {invoiceNumber} · {invoiceDate}</div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <DownloadButtons data={data} />
-          <button className="reset-btn" onClick={onReset}>← New File</button>
+          <LanguageSwitcher lang={lang} setLang={setLang} />
+          <DownloadButtons data={data} lang={lang} />
+          <button className="reset-btn" onClick={onReset}>{t(lang, 'newFile')}</button>
         </div>
       </div>
 
       <div className="kpi-grid">
         <div className={`kpi-card ${co2Color}`} style={{ gridColumn: 'span 2' }}>
-          <div className="kpi-label">Total CO₂ Emissions</div>
+          <div className="kpi-label">{t(lang, 'kpiTotalCO2')}</div>
           <div className="kpi-value" style={{ fontSize: 44 }}>{totalCO2kg} <span style={{ fontSize: 18 }}>kg</span></div>
-          <div className="kpi-sub">{totalCO2t} tonnes CO₂eq · {co2Rating} emission level</div>
+          <div className="kpi-sub">{totalCO2t} {t(lang, 'tonnesCO2eq')} · {co2Rating} {t(lang, 'emissionLevel')}</div>
         </div>
-        <div className="kpi-card"><div className="kpi-label">Line Items</div><div className="kpi-value" style={{ color: '#e2f0e4' }}>{emissionBreakdown.length}</div><div className="kpi-sub">Analyzed</div></div>
-        <div className={`kpi-card ${co2Color}`}><div className="kpi-label">Rating</div><div className="kpi-value">{co2Rating}</div><div className="kpi-sub">{totalCO2kg < 500 ? '< 500kg Low' : totalCO2kg < 2000 ? '500–2000kg Medium' : '> 2000kg High'}</div></div>
-        <div className="kpi-card"><div className="kpi-label">Overall Score</div><div className="kpi-value" style={{ color: '#e2f0e4' }}>{overallScore}</div><div className="kpi-sub">vs benchmark 65</div></div>
+        <div className="kpi-card"><div className="kpi-label">{t(lang, 'kpiLineItems')}</div><div className="kpi-value" style={{ color: '#e2f0e4' }}>{emissionBreakdown.length}</div><div className="kpi-sub">{t(lang, 'analyzed')}</div></div>
+        <div className={`kpi-card ${co2Color}`}><div className="kpi-label">{t(lang, 'kpiRating')}</div><div className="kpi-value">{co2Rating}</div><div className="kpi-sub">{totalCO2kg < 500 ? t(lang, 'lowRating') : totalCO2kg < 2000 ? t(lang, 'medRating') : t(lang, 'highRating')}</div></div>
+        <div className="kpi-card"><div className="kpi-label">{t(lang, 'kpiOverallScore')}</div><div className="kpi-value" style={{ color: '#e2f0e4' }}>{overallScore}</div><div className="kpi-sub">{t(lang, 'vsBenchmark65')}</div></div>
       </div>
 
-      {notes && <div style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 10, padding: '12px 20px', marginBottom: 20, fontSize: 13, color: '#6b8f72' }}>⚠ {notes}</div>}
+      {notes && <div style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 10, padding: '12px 20px', marginBottom: 20, fontSize: 13, color: '#6b8f72' }}>{t(lang, 'notesPrefix')} {notes}</div>}
 
       <div className="dash-grid" style={{ marginBottom: 20 }}>
         <div className="panel">
-          <div className="panel-title">CO₂ by Line Item (kg)</div>
+          <div className="panel-title">{t(lang, 'panelCO2ByItem')}</div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={barData} margin={{ top: 4, right: 16, bottom: 60, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" />
               <XAxis dataKey="name" tick={{ fill: '#6b8f72', fontSize: 10, fontFamily: 'IBM Plex Mono' }} angle={-35} textAnchor="end" interval={0} />
               <YAxis tick={{ fill: '#6b8f72', fontSize: 10 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="co2" name="CO₂ (kg)" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="co2" name={t(lang, 'thCO2')} radius={[4, 4, 0, 0]}>
                 {barData.map((_, i) => <Cell key={i} fill={i % 2 === 0 ? '#4ade80' : '#22c55e'} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="panel">
-          <div className="panel-title">Score vs Benchmark by Category</div>
+          <div className="panel-title">{t(lang, 'panelScoreVsBenchmark')}</div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={radarData} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" horizontal={false} />
@@ -420,14 +454,14 @@ function InvoiceDashboard({ data, onReset }) {
       </div>
 
       <div className="panel full" style={{ marginBottom: 20 }}>
-        <div className="panel-title">Detailed Emission Breakdown</div>
+        <div className="panel-title">{t(lang, 'panelDetailedBreakdown')}</div>
         <div style={{ overflowX: 'auto' }}>
           <table className="cat-table">
-            <thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>EU Factor (kg/unit)</th><th style={{ textAlign: 'right' }}>CO₂ (kg)</th></tr></thead>
+            <thead><tr><th>{t(lang, 'thItem')}</th><th>{t(lang, 'thCategory')}</th><th>{t(lang, 'thQuantity')}</th><th>{t(lang, 'thEUFactor')}</th><th style={{ textAlign: 'right' }}>{t(lang, 'thCO2')}</th></tr></thead>
             <tbody>
               {emissionBreakdown.map((e, i) => (
                 <tr key={i}>
-                  <td><div className="cat-name" style={{ fontSize: 12 }}>{e.item}{e.estimated && <span style={{ color: '#fbbf24', fontSize: 10, marginLeft: 6 }}>⚠ estimated</span>}</div></td>
+                  <td><div className="cat-name" style={{ fontSize: 12 }}>{e.item}{e.estimated && <span style={{ color: '#fbbf24', fontSize: 10, marginLeft: 6 }}>⚠ {t(lang, 'estimated')}</span>}</div></td>
                   <td style={{ fontSize: 12, color: '#6b8f72' }}>{e.category}</td>
                   <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 12 }}>{e.quantity} {e.unit}</td>
                   <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: '#6b8f72' }}>{e.factor}</td>
@@ -435,7 +469,7 @@ function InvoiceDashboard({ data, onReset }) {
                 </tr>
               ))}
               <tr style={{ borderTop: '2px solid #1e2b1e' }}>
-                <td colSpan={3} style={{ fontWeight: 700, fontSize: 14 }}>TOTAL</td>
+                <td colSpan={3} style={{ fontWeight: 700, fontSize: 14 }}>{t(lang, 'total')}</td>
                 <td style={{ fontFamily: 'IBM Plex Mono', fontSize: 18, fontWeight: 700, color: co2Color === 'above' ? '#4ade80' : co2Color === 'below' ? '#f87171' : '#fbbf24', textAlign: 'right' }} colSpan={2}>{totalCO2kg} kg</td>
               </tr>
             </tbody>
@@ -444,10 +478,10 @@ function InvoiceDashboard({ data, onReset }) {
       </div>
 
       <div className="panel full" style={{ marginBottom: 20 }}>
-        <div className="panel-title">Category Performance vs Benchmark</div>
+        <div className="panel-title">{t(lang, 'panelCategoryPerformance')}</div>
         <div style={{ overflowX: 'auto' }}>
           <table className="cat-table">
-            <thead><tr><th>Category</th><th>Score</th><th>Progress</th><th>Benchmark</th><th>Status</th><th style={{ textAlign: 'right' }}>Gap</th></tr></thead>
+            <thead><tr><th>{t(lang, 'thCategory')}</th><th>{t(lang, 'thScore')}</th><th>{t(lang, 'thProgress')}</th><th>{t(lang, 'thBenchmark')}</th><th>{t(lang, 'thStatus')}</th><th style={{ textAlign: 'right' }}>{t(lang, 'thGap')}</th></tr></thead>
             <tbody>
               {results.map(r => (
                 <tr key={r.category}>
@@ -464,19 +498,19 @@ function InvoiceDashboard({ data, onReset }) {
         </div>
       </div>
 
-      <CompetitorView competitorView={competitorView} />
-      <RecommendationsPanel recommendations={recommendations} />
+      <CompetitorView competitorView={competitorView} lang={lang} />
+      <RecommendationsPanel recommendations={recommendations} lang={lang} />
 
       <div className="panel full">
-        <div className="panel-title">Category Highlights</div>
+        <div className="panel-title">{t(lang, 'panelCategoryHighlights')}</div>
         <div className="sw-grid">
           <div>
-            <div className="sw-title" style={{ color: '#4ade80' }}>↑ Strong ({strong.length})</div>
-            {strong.length === 0 ? <div className="sw-empty">No categories above benchmark</div> : strong.map(c => <div key={c} className="sw-item strong">✓ {c}</div>)}
+            <div className="sw-title" style={{ color: '#4ade80' }}>↑ {t(lang, 'strongAreas')} ({strong.length})</div>
+            {strong.length === 0 ? <div className="sw-empty">{t(lang, 'noAbove')}</div> : strong.map(c => <div key={c} className="sw-item strong">✓ {c}</div>)}
           </div>
           <div>
-            <div className="sw-title" style={{ color: '#f87171' }}>↓ Weak ({weak.length})</div>
-            {weak.length === 0 ? <div className="sw-empty">No categories below benchmark</div> : weak.map(c => <div key={c} className="sw-item weak">✗ {c}</div>)}
+            <div className="sw-title" style={{ color: '#f87171' }}>↓ {t(lang, 'weakAreas')} ({weak.length})</div>
+            {weak.length === 0 ? <div className="sw-empty">{t(lang, 'noBelow')}</div> : weak.map(c => <div key={c} className="sw-item weak">✗ {c}</div>)}
           </div>
         </div>
       </div>
@@ -485,7 +519,7 @@ function InvoiceDashboard({ data, onReset }) {
 }
 
 // ── REPORT DASHBOARD ──────────────────────────────────────────────────────────
-function ReportDashboard({ data, onReset }) {
+function ReportDashboard({ data, onReset, lang, setLang }) {
   const { fileName, overallScore, overallBenchmark, results, strong, weak, competitorView, recommendations } = data;
   const overallStatus = overallScore >= overallBenchmark + 10 ? 'above' : overallScore <= overallBenchmark - 10 ? 'below' : 'average';
   const barData = results.map(r => ({ name: r.category.length > 14 ? r.category.slice(0, 14) + '…' : r.category, Score: r.score, Benchmark: r.benchmark, status: r.status }));
@@ -496,28 +530,29 @@ function ReportDashboard({ data, onReset }) {
       <div className="dash-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div className="dash-title">CSRD Sustainability Scoring</div>
-            <span style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>REPORT</span>
+            <div className="dash-title">{t(lang, 'reportTitle')}</div>
+            <span style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', padding: '2px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeReportShort')}</span>
           </div>
           <div className="dash-filename">📄 {fileName}</div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <DownloadButtons data={data} />
-          <button className="reset-btn" onClick={onReset}>← New File</button>
+          <LanguageSwitcher lang={lang} setLang={setLang} />
+          <DownloadButtons data={data} lang={lang} />
+          <button className="reset-btn" onClick={onReset}>{t(lang, 'newFile')}</button>
         </div>
       </div>
 
       <div className="kpi-grid">
-        <div className={`kpi-card ${overallStatus}`}><div className="kpi-label">Overall Score</div><div className="kpi-value">{overallScore}</div><div className="kpi-sub">Benchmark: {overallBenchmark}/100</div></div>
-        <div className="kpi-card"><div className="kpi-label">Categories</div><div className="kpi-value" style={{ color: '#e2f0e4' }}>{results.length}</div><div className="kpi-sub">Assessed</div></div>
-        <div className="kpi-card above"><div className="kpi-label">Strong</div><div className="kpi-value">{strong.length}</div><div className="kpi-sub">Above benchmark</div></div>
-        <div className="kpi-card below"><div className="kpi-label">Weak</div><div className="kpi-value">{weak.length}</div><div className="kpi-sub">Below benchmark</div></div>
-        <div className={`kpi-card ${overallStatus}`}><div className="kpi-label">vs Industry</div><div className="kpi-value">{overallScore - overallBenchmark > 0 ? '+' : ''}{overallScore - overallBenchmark}</div><div className="kpi-sub">Gap</div></div>
+        <div className={`kpi-card ${overallStatus}`}><div className="kpi-label">{t(lang, 'kpiOverallScore')}</div><div className="kpi-value">{overallScore}</div><div className="kpi-sub">{t(lang, 'benchmarkLabel')}: {overallBenchmark}/100</div></div>
+        <div className="kpi-card"><div className="kpi-label">{t(lang, 'kpiCategories')}</div><div className="kpi-value" style={{ color: '#e2f0e4' }}>{results.length}</div><div className="kpi-sub">{t(lang, 'assessed')}</div></div>
+        <div className="kpi-card above"><div className="kpi-label">{t(lang, 'kpiStrong')}</div><div className="kpi-value">{strong.length}</div><div className="kpi-sub">{t(lang, 'aboveBenchmark')}</div></div>
+        <div className="kpi-card below"><div className="kpi-label">{t(lang, 'kpiWeak')}</div><div className="kpi-value">{weak.length}</div><div className="kpi-sub">{t(lang, 'belowBenchmark')}</div></div>
+        <div className={`kpi-card ${overallStatus}`}><div className="kpi-label">{t(lang, 'kpiVsIndustry')}</div><div className="kpi-value">{overallScore - overallBenchmark > 0 ? '+' : ''}{overallScore - overallBenchmark}</div><div className="kpi-sub">{t(lang, 'gapLabel')}</div></div>
       </div>
 
       <div className="dash-grid" style={{ marginBottom: 20 }}>
         <div className="panel">
-          <div className="panel-title">Score vs Benchmark</div>
+          <div className="panel-title">{t(lang, 'panelScoreVsBenchmarkPlain')}</div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={barData} margin={{ top: 4, right: 16, bottom: 60, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" />
@@ -531,7 +566,7 @@ function ReportDashboard({ data, onReset }) {
           </ResponsiveContainer>
         </div>
         <div className="panel">
-          <div className="panel-title">Score vs Benchmark by Category</div>
+          <div className="panel-title">{t(lang, 'panelScoreVsBenchmark')}</div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={radarData} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2b1e" horizontal={false} />
@@ -547,7 +582,7 @@ function ReportDashboard({ data, onReset }) {
       </div>
 
       <div className="panel full" style={{ marginBottom: 20 }}>
-        <div className="panel-title">Gap Heatmap</div>
+        <div className="panel-title">{t(lang, 'panelGapHeatmap')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 8 }}>
           {[...results].sort((a, b) => a.gap - b.gap).map(r => {
             const intensity = Math.min(Math.abs(r.gap) / 40, 1);
@@ -556,7 +591,7 @@ function ReportDashboard({ data, onReset }) {
               <div key={r.category} style={{ background: bg, border: `1px solid ${r.gap >= 0 ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`, borderRadius: 8, padding: 12 }}>
                 <div style={{ fontSize: 10, fontFamily: 'IBM Plex Mono', color: '#6b8f72', marginBottom: 4 }}>{r.category}</div>
                 <div style={{ fontSize: 20, fontFamily: 'IBM Plex Mono', fontWeight: 700, color: r.gap >= 0 ? '#4ade80' : '#f87171' }}>{r.gap > 0 ? '+' : ''}{r.gap}</div>
-                <div style={{ fontSize: 10, color: '#6b8f72', marginTop: 2 }}>vs benchmark</div>
+                <div style={{ fontSize: 10, color: '#6b8f72', marginTop: 2 }}>{t(lang, 'vsBenchmarkTag')}</div>
               </div>
             );
           })}
@@ -564,10 +599,10 @@ function ReportDashboard({ data, onReset }) {
       </div>
 
       <div className="panel full" style={{ marginBottom: 20 }}>
-        <div className="panel-title">Category Breakdown</div>
+        <div className="panel-title">{t(lang, 'panelCategoryBreakdown')}</div>
         <div style={{ overflowX: 'auto' }}>
           <table className="cat-table">
-            <thead><tr><th>Category</th><th>Score</th><th>Progress</th><th>Benchmark</th><th>Status</th><th style={{ textAlign: 'right' }}>Gap</th></tr></thead>
+            <thead><tr><th>{t(lang, 'thCategory')}</th><th>{t(lang, 'thScore')}</th><th>{t(lang, 'thProgress')}</th><th>{t(lang, 'thBenchmark')}</th><th>{t(lang, 'thStatus')}</th><th style={{ textAlign: 'right' }}>{t(lang, 'thGap')}</th></tr></thead>
             <tbody>
               {results.map(r => (
                 <tr key={r.category}>
@@ -584,19 +619,19 @@ function ReportDashboard({ data, onReset }) {
         </div>
       </div>
 
-      <CompetitorView competitorView={competitorView} />
-      <RecommendationsPanel recommendations={recommendations} />
+      <CompetitorView competitorView={competitorView} lang={lang} />
+      <RecommendationsPanel recommendations={recommendations} lang={lang} />
 
       <div className="panel full">
-        <div className="panel-title">Category Highlights</div>
+        <div className="panel-title">{t(lang, 'panelCategoryHighlights')}</div>
         <div className="sw-grid">
           <div>
-            <div className="sw-title" style={{ color: '#4ade80' }}>↑ Strong ({strong.length})</div>
-            {strong.length === 0 ? <div className="sw-empty">No categories above benchmark</div> : strong.map(c => <div key={c} className="sw-item strong">✓ {c}</div>)}
+            <div className="sw-title" style={{ color: '#4ade80' }}>↑ {t(lang, 'strongAreas')} ({strong.length})</div>
+            {strong.length === 0 ? <div className="sw-empty">{t(lang, 'noAbove')}</div> : strong.map(c => <div key={c} className="sw-item strong">✓ {c}</div>)}
           </div>
           <div>
-            <div className="sw-title" style={{ color: '#f87171' }}>↓ Weak ({weak.length})</div>
-            {weak.length === 0 ? <div className="sw-empty">No categories below benchmark</div> : weak.map(c => <div key={c} className="sw-item weak">✗ {c}</div>)}
+            <div className="sw-title" style={{ color: '#f87171' }}>↓ {t(lang, 'weakAreas')} ({weak.length})</div>
+            {weak.length === 0 ? <div className="sw-empty">{t(lang, 'noBelow')}</div> : weak.map(c => <div key={c} className="sw-item weak">✗ {c}</div>)}
           </div>
         </div>
       </div>
@@ -607,15 +642,16 @@ function ReportDashboard({ data, onReset }) {
 // ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [result, setResult] = useState(null);
+  const [lang, setLang] = useState('en');
   return (
     <div className="app">
       <header className="header">
         <span className="header-logo">🐦 Carbon Canary</span>
-        <span className="header-sub">Scope 3 Analytics · DE/PL Corridor · Climathon 2026</span>
+        <span className="header-sub">{t(lang, 'appTagline')}</span>
       </header>
-      {!result && <UploadView onResult={setResult} />}
-      {result?.documentType === 'invoice' && <InvoiceDashboard data={result} onReset={() => setResult(null)} />}
-      {result?.documentType === 'report' && <ReportDashboard data={result} onReset={() => setResult(null)} />}
+      {!result && <UploadView onResult={setResult} lang={lang} setLang={setLang} />}
+      {result?.documentType === 'invoice' && <InvoiceDashboard data={result} onReset={() => setResult(null)} lang={lang} setLang={setLang} />}
+      {result?.documentType === 'report' && <ReportDashboard data={result} onReset={() => setResult(null)} lang={lang} setLang={setLang} />}
     </div>
   );
 }
