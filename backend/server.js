@@ -535,7 +535,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const results = buildCategoryScores(lineItems, totalCO2kg, text);
     const overallScore = Math.round(results.reduce((s, r) => s + r.score, 0) / results.length);
     const estimatedCount = lineItems.filter(i => i.estimated).length;
-    const confidence = estimatedCount === 0 ? 'high' : estimatedCount < lineItems.length / 2 ? 'medium' : 'low';
+    const exactCount = lineItems.length - estimatedCount;
+    // Confidence score out of 10: based on the proportion of quantities found directly in the document.
+    const confidenceScore = lineItems.length === 0
+      ? 0
+      : Math.round((exactCount / lineItems.length) * 10);
 
     res.json({
       fileName: req.file.originalname,
@@ -546,7 +550,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       totalCO2t,
       co2Rating,
       co2Color,
-      confidence,
+      confidenceScore,
       notes: estimatedCount > 0
         ? `${estimatedCount} of ${lineItems.length} quantities were estimated because exact values were not found in the document. Upload a structured CSV or Excel for more accurate results.`
         : `All quantities extracted directly from the document.`,
