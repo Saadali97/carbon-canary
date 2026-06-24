@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const xlsx = require('xlsx');
+const Tesseract = require('tesseract.js');
 
 const app = express();
 app.use(cors());
@@ -168,6 +169,21 @@ function buildCompetitorComparison(results, competitorList) {
   const rank = all.findIndex(c => c.isYou) + 1;
 
   return { competitors: withAvg, yourRank: rank, totalCompanies: all.length, leaderboard: all };
+}
+
+// ─── OCR TEXT EXTRACTION (for uploaded images of invoices) ────────────────────
+async function extractTextFromImage(filePath) {
+  try {
+    // 'eng+deu+pol' loads English, German, and Polish recognition together,
+    // since invoices in this DE/PL corridor may be in any of the three.
+    const result = await Tesseract.recognize(filePath, 'eng+deu+pol', {
+      logger: () => {}, // silence progress logs
+    });
+    return result.data.text || '';
+  } catch (e) {
+    console.error('OCR failed:', e.message);
+    return '';
+  }
 }
 
 // ─── PDF TEXT EXTRACTION ──────────────────────────────────────────────────────
@@ -503,6 +519,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   const filePath = req.file.path;
   const ext = path.extname(req.file.originalname).toLowerCase();
   let text = '';
+  let ocrUsed = false;
 
   try {
     if (ext === '.pdf') {
@@ -512,17 +529,24 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       wb.SheetNames.forEach(n => { text += xlsx.utils.sheet_to_csv(wb.Sheets[n]) + '\n'; });
     } else if (ext === '.csv' || ext === '.txt') {
       text = fs.readFileSync(filePath, 'utf-8');
+    } else if (['.jpg', '.jpeg', '.png', '.webp', '.bmp'].includes(ext)) {
+      text = await extractTextFromImage(filePath);
+      ocrUsed = true;
     } else {
       fs.unlinkSync(filePath);
       return res.status(400).json({ error: 'Unsupported file type.' });
     }
     fs.unlinkSync(filePath);
 
+    if (ocrUsed && (!text || text.trim().length < 10)) {
+      return res.status(400).json({ error: 'Could not read any text from this image. Try a clearer, well-lit photo or upload a PDF/CSV instead.' });
+    }
+
     const docType = detectDocumentType(text);
 
     if (docType === 'report') {
       const analysis = analyzeReport(text);
-      return res.json({ fileName: req.file.originalname, documentType: 'report', wordCount: text.split(/\s+/).filter(Boolean).length, ...analysis });
+      return res.json({ fileName: req.file.originalname, documentType: 'report', wordCount: text.split(/\s+/).filter(Boolean).length, ocrUsed, ...analysis });
     }
 
     // INVOICE MODE
@@ -537,21 +561,26 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const estimatedCount = lineItems.filter(i => i.estimated).length;
     const exactCount = lineItems.length - estimatedCount;
     // Confidence score out of 10: based on the proportion of quantities found directly in the document.
-    const confidenceScore = lineItems.length === 0
+    // OCR-read text is noisier than a native PDF/CSV, so cap confidence slightly when OCR was used.
+    let confidenceScore = lineItems.length === 0
       ? 0
       : Math.round((exactCount / lineItems.length) * 10);
+    if (ocrUsed) confidenceScore = Math.max(0, confidenceScore - 2);
 
     res.json({
       fileName: req.file.originalname,
       documentType: 'invoice',
       wordCount: text.split(/\s+/).filter(Boolean).length,
+      ocrUsed,
       ...metadata,
       totalCO2kg,
       totalCO2t,
       co2Rating,
       co2Color,
       confidenceScore,
-      notes: estimatedCount > 0
+      notes: ocrUsed
+        ? `This was read from an image using OCR (English/German/Polish). ${estimatedCount > 0 ? `${estimatedCount} of ${lineItems.length} quantities were estimated.` : ''} For best accuracy, upload a PDF or structured CSV/Excel instead of a photo.`
+        : estimatedCount > 0
         ? `${estimatedCount} of ${lineItems.length} quantities were estimated because exact values were not found in the document. Upload a structured CSV or Excel for more accurate results.`
         : `All quantities extracted directly from the document.`,
       emissionBreakdown: lineItems,
