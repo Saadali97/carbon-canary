@@ -1,13 +1,19 @@
 {
   "files": {
-    "main.css": "/carbon-canary/static/css/main.9da34e5f.css",
-    "main.js": "/carbon-canary/static/js/main.1a3473ae.js",
+    "main.css": "/carbon-canary/static/css/main.85c5bc0b.css",
+    "main.js": "/carbon-canary/static/js/main.3568ed70.js",
+    "static/js/239.e39fb35b.chunk.js": "/carbon-canary/static/js/239.e39fb35b.chunk.js",
+    "static/js/977.459ae33c.chunk.js": "/carbon-canary/static/js/977.459ae33c.chunk.js",
+    "static/js/455.d639c004.chunk.js": "/carbon-canary/static/js/455.d639c004.chunk.js",
     "index.html": "/carbon-canary/index.html",
-    "main.9da34e5f.css.map": "/carbon-canary/static/css/main.9da34e5f.css.map",
-    "main.1a3473ae.js.map": "/carbon-canary/static/js/main.1a3473ae.js.map"
+    "main.85c5bc0b.css.map": "/carbon-canary/static/css/main.85c5bc0b.css.map",
+    "main.3568ed70.js.map": "/carbon-canary/static/js/main.3568ed70.js.map",
+    "239.e39fb35b.chunk.js.map": "/carbon-canary/static/js/239.e39fb35b.chunk.js.map",
+    "977.459ae33c.chunk.js.map": "/carbon-canary/static/js/977.459ae33c.chunk.js.map",
+    "455.d639c004.chunk.js.map": "/carbon-canary/static/js/455.d639c004.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.9da34e5f.css",
-    "static/js/main.1a3473ae.js"
+    "static/css/main.85c5bc0b.css",
+    "static/js/main.3568ed70.js"
   ]
 }
