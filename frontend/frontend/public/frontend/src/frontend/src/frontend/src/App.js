@@ -352,8 +352,7 @@ function UploadView({ onResult, lang, setLang }) {
       <div style={{ position: 'absolute', top: 16, right: 24 }}>
         <LanguageSwitcher lang={lang} setLang={setLang} />
       </div>
-      <div className="upload-eyebrow">🐦 Carbon Canary</div>
-      <h1 className="upload-headline">{t(lang, 'uploadHeadlinePre')}<em>{t(lang, 'uploadHeadlineEm')}</em><br />{t(lang, 'uploadHeadlinePost')}</h1>
+      <h1 className="upload-headline">Your supplier's carbon footprint<br />extracted, calculated, audit ready</h1>
       <p className="upload-sub">
         {t(lang, 'uploadSub1')}<strong style={{ color: '#4ade80' }}>{t(lang, 'uploadSubInvoice')}</strong>{t(lang, 'uploadSub2')}<strong style={{ color: '#fbbf24' }}>{t(lang, 'uploadSubReport')}</strong>{t(lang, 'uploadSub3')}
       </p>
@@ -371,11 +370,6 @@ function UploadView({ onResult, lang, setLang }) {
       </div>
       {file && <div className="file-selected"><span>✓</span><span>{file.name}</span><span style={{ color: '#6b8f72' }}>({(file.size / 1024).toFixed(1)} KB)</span></div>}
       {error && <div className="error-box">{error}</div>}
-      <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#4ade80', fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeInvoice')}</div>
-        <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#fbbf24', fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgeReport')}</div>
-        <div style={{ background: 'rgba(168,196,171,0.08)', border: '1px solid rgba(168,196,171,0.2)', borderRadius: 8, padding: '8px 16px', fontSize: 12, color: '#a8c4ab', fontFamily: 'IBM Plex Mono' }}>{t(lang, 'badgePhoto')}</div>
-      </div>
       <button className="upload-btn" disabled={!file} onClick={handleSubmit} style={{ marginTop: 20 }}>{t(lang, 'analyzeBtn')}</button>
     </div>
   );
